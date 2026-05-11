@@ -1,8 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { createClient } from "@/lib/supabase/client"
 import { useSearchParams } from "next/navigation"
+import { loginUser } from "@/actions/auth.actions"
 import { toast } from "sonner"
 import Link from "next/link"
 import { Mail, Lock, ArrowRight, Loader2, Eye, EyeOff } from "lucide-react"
@@ -18,19 +18,15 @@ export function LoginForm() {
     setLoading(true)
     const fd = new FormData(e.currentTarget)
 
-    const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({
-      email: fd.get("email") as string,
-      password: fd.get("password") as string,
-    })
+    const result = await loginUser(fd)
 
-    if (error) {
-      toast.error("Invalid email or password.")
+    if ("error" in result) {
+      toast.error(result.error)
       setLoading(false)
       return
     }
 
-    // Hard redirect so the browser sends auth cookies with the new request
+    // Server action set auth cookies in the response — hard redirect carries them
     window.location.href = callbackUrl
   }
 

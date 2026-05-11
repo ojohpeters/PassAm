@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { createClient } from "@/lib/supabase/client"
+import { registerUser } from "@/actions/auth.actions"
 import { toast } from "sonner"
 import Link from "next/link"
 import { User, Mail, Lock, ArrowRight, Loader2, Eye, EyeOff } from "lucide-react"
@@ -25,23 +25,15 @@ export function RegisterForm() {
       return
     }
 
-    const supabase = createClient()
-    const { error } = await supabase.auth.signUp({
-      email: fd.get("email") as string,
-      password: fd.get("password") as string,
-      options: { data: { name: fd.get("name") as string } },
-    })
+    const result = await registerUser(fd)
 
-    if (error) {
-      toast.error(
-        error.message.includes("already registered")
-          ? "An account with this email already exists."
-          : "Registration failed. Please try again."
-      )
+    if ("error" in result) {
+      toast.error(result.error)
       setLoading(false)
       return
     }
 
+    // Server action set auth cookies in the response — hard redirect carries them
     window.location.href = "/dashboard"
   }
 
