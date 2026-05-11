@@ -26,9 +26,13 @@ export async function TopNav() {
         <span className="hidden text-sm text-muted-foreground sm:block">
           Hey, <span className="font-semibold text-foreground">{firstName}</span> 👋
         </span>
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+        <Link
+          href="/profile"
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground ring-2 ring-transparent transition-all hover:ring-primary/40 active:scale-95"
+          title="My Profile"
+        >
           {initials}
-        </div>
+        </Link>
       </div>
     </header>
   )

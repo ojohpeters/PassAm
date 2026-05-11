@@ -9,6 +9,9 @@ export interface Database {
           name: string
           role: "STUDENT" | "ADMIN"
           subscription_status: "FREE" | "PRO"
+          bio: string | null
+          avatar_url: string | null
+          target_school: string | null
           created_at: string
           updated_at: string
         }
@@ -17,6 +20,9 @@ export interface Database {
           name?: string
           role?: "STUDENT" | "ADMIN"
           subscription_status?: "FREE" | "PRO"
+          bio?: string | null
+          avatar_url?: string | null
+          target_school?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -25,6 +31,9 @@ export interface Database {
           name?: string
           role?: "STUDENT" | "ADMIN"
           subscription_status?: "FREE" | "PRO"
+          bio?: string | null
+          avatar_url?: string | null
+          target_school?: string | null
           created_at?: string
           updated_at?: string
         }

@@ -2,14 +2,14 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Trophy, BarChart2, Calendar } from "lucide-react"
+import { LayoutDashboard, Trophy, Calendar, UserCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const TABS = [
-  { href: "/dashboard",   label: "Home",        icon: LayoutDashboard },
-  { href: "/leaderboard", label: "Ranks",        icon: Trophy          },
-  { href: "/analytics",   label: "Analytics",   icon: BarChart2        },
-  { href: "/daily-quiz",  label: "Daily",        icon: Calendar         },
+  { href: "/dashboard",   label: "Home",    icon: LayoutDashboard },
+  { href: "/leaderboard", label: "Ranks",   icon: Trophy          },
+  { href: "/daily-quiz",  label: "Daily",   icon: Calendar        },
+  { href: "/profile",     label: "Profile", icon: UserCircle      },
 ]
 
 export function BottomNav() {
