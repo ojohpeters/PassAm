@@ -1,0 +1,249 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL") // Neon requires a direct (non-pooled) URL for migrations
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  STUDENT
+  ADMIN
+}
+
+enum SubscriptionStatus {
+  FREE
+  PRO
+}
+
+enum OptionLabel {
+  A
+  B
+  C
+  D
+}
+
+enum FeedbackType {
+  WRONG_ANSWER
+  TYPO
+  SUGGESTION
+}
+
+enum FeedbackStatus {
+  PENDING
+  REVIEWED
+  RESOLVED
+}
+
+enum NotificationType {
+  DAILY_QUIZ_READY
+  STREAK_REMINDER
+  GENERAL
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id                 String             @id @default(cuid())
+  email              String             @unique
+  passwordHash       String             // bcrypt hash — never store plaintext
+  name               String
+  role               Role               @default(STUDENT)
+  subscriptionStatus SubscriptionStatus @default(FREE)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  attempts      ExamAttempt[]
+  dailyQuizzes  DailyQuiz[]
+  streak        Streak?
+  feedbacks     Feedback[]
+  notifications Notification[]
+
+  @@index([role]) // admin user listing
+}
+
+model School {
+  id           String   @id @default(cuid())
+  name         String
+  abbreviation String   @unique // "UNILAG", "OAU", "UNIBEN", "UI"
+  location     String?
+  logoUrl      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  questions Question[]
+  attempts  ExamAttempt[]
+}
+
+model Subject {
+  id        String   @id @default(cuid())
+  name      String   @unique // "Mathematics", "Physics", "English Language"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  questions      Question[]
+  attemptAnswers AttemptAnswer[] // denormalized relation — see AttemptAnswer
+}
+
+model Question {
+  id          String   @id @default(cuid())
+  text        String
+  imageUrl    String?  // optional diagram (common in Nigerian science papers)
+  explanation String?  // shown to student after attempt
+  year        Int?     // e.g. 2022 — the past-paper year
+  schoolId    String
+  subjectId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  school             School              @relation(fields: [schoolId], references: [id])
+  subject            Subject             @relation(fields: [subjectId], references: [id])
+  options            Option[]
+  attemptAnswers     AttemptAnswer[]
+  dailyQuizQuestions DailyQuizQuestion[]
+  feedbacks          Feedback[]
+
+  @@index([schoolId, subjectId]) // exam generation: random questions by school + subject
+  @@index([schoolId, year])      // filter past papers by year
+  @@index([subjectId])           // analytics joins
+}
+
+model Option {
+  id         String      @id @default(cuid())
+  questionId String
+  label      OptionLabel // A | B | C | D
+  text       String
+  isCorrect  Boolean     @default(false)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  question         Question            @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  attemptAnswers   AttemptAnswer[]
+  dailyQuizAnswers DailyQuizQuestion[]
+
+  @@unique([questionId, label]) // one A, one B, one C, one D per question
+  @@index([questionId])
+}
+
+model ExamAttempt {
+  id             String    @id @default(cuid())
+  userId         String
+  schoolId       String
+  score          Int       @default(0) // number correct
+  totalQuestions Int
+  timeTakenSecs  Int?      // elapsed seconds at submission (more reliable than diff)
+  completedAt    DateTime? // null = still in progress (browser crash, timeout)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user    User            @relation(fields: [userId], references: [id])
+  school  School          @relation(fields: [schoolId], references: [id])
+  answers AttemptAnswer[]
+
+  @@index([userId, createdAt])   // student history, chronological
+  @@index([schoolId, createdAt]) // weekly leaderboard aggregation per school
+  @@index([userId, schoolId])    // per-student per-school analytics
+}
+
+model AttemptAnswer {
+  id               String   @id @default(cuid())
+  attemptId        String
+  questionId       String
+  subjectId        String   // denormalized from Question — avoids 3-table join in analytics
+  selectedOptionId String?  // null = question was skipped
+  isCorrect        Boolean
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  attempt        ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question       Question    @relation(fields: [questionId], references: [id])
+  subject        Subject     @relation(fields: [subjectId], references: [id])
+  selectedOption Option?     @relation(fields: [selectedOptionId], references: [id])
+
+  @@unique([attemptId, questionId]) // one answer per question per attempt
+  @@index([attemptId])              // fetch all answers for a results page
+  @@index([subjectId, isCorrect])   // calculateWeakSubjects: accuracy per subject
+}
+
+// Stores which questions belong to a user's daily quiz and their answers
+model DailyQuiz {
+  id          String    @id @default(cuid())
+  userId      String
+  date        String    // "YYYY-MM-DD" in WAT (UTC+1) — avoids timezone boundary issues
+  score       Int       @default(0)
+  completedAt DateTime? // null = not yet submitted
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user      User                @relation(fields: [userId], references: [id])
+  questions DailyQuizQuestion[]
+
+  @@unique([userId, date]) // one quiz per user per calendar day
+  @@index([userId, date])
+}
+
+model DailyQuizQuestion {
+  id               String   @id @default(cuid())
+  dailyQuizId      String
+  questionId       String
+  selectedOptionId String?  // null = not yet answered
+  isCorrect        Boolean? // null = not yet answered
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  dailyQuiz      DailyQuiz @relation(fields: [dailyQuizId], references: [id], onDelete: Cascade)
+  question       Question  @relation(fields: [questionId], references: [id])
+  selectedOption Option?   @relation(fields: [selectedOptionId], references: [id])
+
+  @@unique([dailyQuizId, questionId])
+  @@index([dailyQuizId])
+}
+
+model Streak {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  currentStreak    Int      @default(0)
+  longestStreak    Int      @default(0)
+  lastActivityDate String?  // "YYYY-MM-DD" of last daily quiz completion
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Feedback {
+  id         String         @id @default(cuid())
+  userId     String
+  questionId String
+  type       FeedbackType
+  message    String
+  status     FeedbackStatus @default(PENDING)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id])
+  question Question @relation(fields: [questionId], references: [id])
+
+  @@index([status])     // admin: filter PENDING reports
+  @@index([questionId]) // all reports for a single question
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, isRead])    // unread count + notification inbox
+  @@index([userId, createdAt]) // chronological inbox
+}
