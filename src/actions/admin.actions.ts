@@ -183,3 +183,122 @@ export async function deleteQuestion(id: string): Promise<ActionResult<void>> {
   await admin.from("questions").delete().eq("id", id)
   return { success: true, data: undefined }
 }
+
+// ── Student management ────────────────────────────────────────────────────────
+
+export async function getStudents(page = 1, search = "") {
+  try {
+    await requireAdmin()
+  } catch {
+    return null
+  }
+
+  const admin = createAdminClient()
+  const limit = 30
+  const from  = (page - 1) * limit
+  const to    = from + limit - 1
+
+  let query = admin
+    .from("profiles")
+    .select("id, name, email, is_banned, target_school, created_at, avatar_url", { count: "exact" })
+    .eq("role", "STUDENT")
+    .order("created_at", { ascending: false })
+    .range(from, to)
+
+  if (search.trim()) {
+    query = query.or(`name.ilike.%${search.trim()}%,email.ilike.%${search.trim()}%`)
+  }
+
+  const { data: students, count } = await query
+
+  // Exam count per student (batch)
+  const ids = (students ?? []).map((s) => s.id)
+  const { data: examCounts } = ids.length
+    ? await admin
+        .from("exam_attempts")
+        .select("user_id")
+        .in("user_id", ids)
+        .not("completed_at", "is", null)
+    : { data: [] }
+
+  const countMap: Record<string, number> = {}
+  for (const row of examCounts ?? []) {
+    countMap[row.user_id] = (countMap[row.user_id] ?? 0) + 1
+  }
+
+  return {
+    students: (students ?? []).map((s) => ({ ...s, examCount: countMap[s.id] ?? 0 })),
+    total: count ?? 0,
+    pages: Math.ceil((count ?? 0) / limit),
+  }
+}
+
+export async function banStudent(userId: string): Promise<ActionResult<void>> {
+  try {
+    await requireAdmin()
+  } catch {
+    return { success: false, error: "UNAUTHORIZED" }
+  }
+
+  const admin = createAdminClient()
+  const { error } = await admin.from("profiles").update({ is_banned: true }).eq("id", userId)
+  if (error) return { success: false, error: "Failed to ban student" }
+  return { success: true, data: undefined }
+}
+
+export async function unbanStudent(userId: string): Promise<ActionResult<void>> {
+  try {
+    await requireAdmin()
+  } catch {
+    return { success: false, error: "UNAUTHORIZED" }
+  }
+
+  const admin = createAdminClient()
+  const { error } = await admin.from("profiles").update({ is_banned: false }).eq("id", userId)
+  if (error) return { success: false, error: "Failed to unban student" }
+  return { success: true, data: undefined }
+}
+
+// ── Broadcast notifications ───────────────────────────────────────────────────
+
+export async function broadcastNotification(
+  title: string,
+  body: string
+): Promise<ActionResult<{ count: number }>> {
+  try {
+    await requireAdmin()
+  } catch {
+    return { success: false, error: "UNAUTHORIZED" }
+  }
+
+  if (!title.trim() || !body.trim()) return { success: false, error: "Title and message required" }
+
+  const admin = createAdminClient()
+
+  // Fetch all active, non-admin students
+  const { data: students } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("role", "STUDENT")
+    .eq("is_banned", false)
+
+  if (!students || students.length === 0) {
+    return { success: true, data: { count: 0 } }
+  }
+
+  const rows = students.map((s) => ({
+    user_id: s.id,
+    type: "GENERAL" as const,
+    title: title.trim(),
+    body: body.trim(),
+    is_read: false,
+  }))
+
+  // Insert in chunks of 500 to stay within Supabase payload limits
+  const CHUNK = 500
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    await admin.from("notifications").insert(rows.slice(i, i + CHUNK))
+  }
+
+  return { success: true, data: { count: students.length } }
+}

@@ -7,33 +7,39 @@ export interface Database {
         Row: {
           id: string
           name: string
+          email: string | null
           role: "STUDENT" | "ADMIN"
           subscription_status: "FREE" | "PRO"
           bio: string | null
           avatar_url: string | null
           target_school: string | null
+          is_banned: boolean
           created_at: string
           updated_at: string
         }
         Insert: {
           id: string
           name?: string
+          email?: string | null
           role?: "STUDENT" | "ADMIN"
           subscription_status?: "FREE" | "PRO"
           bio?: string | null
           avatar_url?: string | null
           target_school?: string | null
+          is_banned?: boolean
           created_at?: string
           updated_at?: string
         }
         Update: {
           id?: string
           name?: string
+          email?: string | null
           role?: "STUDENT" | "ADMIN"
           subscription_status?: "FREE" | "PRO"
           bio?: string | null
           avatar_url?: string | null
           target_school?: string | null
+          is_banned?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -387,4 +393,5 @@ export type AppUser = {
   name: string
   role: "STUDENT" | "ADMIN"
   subscriptionStatus: "FREE" | "PRO"
+  isBanned: boolean
 }

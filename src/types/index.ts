@@ -1,16 +1,6 @@
 export type ActionResult<T> =
   | { success: true; data: T }
-  | {
-      success: false
-      error:
-        | "UNAUTHORIZED"
-        | "FORBIDDEN"
-        | "NOT_FOUND"
-        | "QUOTA_EXCEEDED"
-        | "PRO_REQUIRED"
-        | "VALIDATION_ERROR"
-        | "INTERNAL"
-    }
+  | { success: false; error: string }
 
 export type QuestionWithOptions = {
   id: string

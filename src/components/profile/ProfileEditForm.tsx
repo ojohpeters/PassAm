@@ -109,7 +109,7 @@ export function ProfileEditForm({ userId, name, bio, targetSchool, avatarUrl, sc
             maxLength={60}
             required
             placeholder="Your full name"
-            className="w-full rounded-xl border bg-background px-4 py-3 text-sm font-medium outline-none ring-primary/40 transition-all focus:border-primary focus:ring-2"
+            className="w-full rounded-xl border bg-background px-4 py-3 text-sm font-medium text-foreground outline-none ring-primary/40 transition-all focus:border-primary focus:ring-2 dark:border-border"
           />
         </div>
 
@@ -127,7 +127,7 @@ export function ProfileEditForm({ userId, name, bio, targetSchool, avatarUrl, sc
             rows={3}
             placeholder="What's your story? Targets, motivation, goals…"
             onChange={(e) => setBioLen(e.target.value.length)}
-            className="w-full resize-none rounded-xl border bg-background px-4 py-3 text-sm outline-none ring-primary/40 transition-all focus:border-primary focus:ring-2"
+            className="w-full resize-none rounded-xl border bg-background px-4 py-3 text-sm text-foreground outline-none ring-primary/40 transition-all focus:border-primary focus:ring-2 dark:border-border"
           />
         </div>
 
@@ -138,7 +138,7 @@ export function ProfileEditForm({ userId, name, bio, targetSchool, avatarUrl, sc
           <select
             name="target_school"
             defaultValue={targetSchool ?? ""}
-            className="w-full rounded-xl border bg-background px-4 py-3 text-sm font-medium outline-none ring-primary/40 transition-all focus:border-primary focus:ring-2"
+            className="w-full rounded-xl border bg-background px-4 py-3 text-sm font-medium text-foreground outline-none ring-primary/40 transition-all focus:border-primary focus:ring-2 dark:border-border"
           >
             <option value="">— Select your target school —</option>
             {schools.map((s) => (

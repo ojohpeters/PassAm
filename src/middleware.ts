@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
-const PUBLIC_PATHS = ["/", "/login", "/register"]
+const PUBLIC_PATHS = ["/", "/login", "/register", "/banned"]
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
@@ -39,6 +39,19 @@ export async function middleware(request: NextRequest) {
     url.pathname = "/login"
     url.searchParams.set("callbackUrl", pathname)
     return NextResponse.redirect(url)
+  }
+
+  // Ban check — skip for admin routes so admin can still operate
+  if (!pathname.startsWith("/admin")) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("is_banned")
+      .eq("id", user.id)
+      .single()
+
+    if (profile?.is_banned) {
+      return NextResponse.redirect(new URL("/banned", request.url))
+    }
   }
 
   return supabaseResponse

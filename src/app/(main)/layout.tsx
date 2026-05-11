@@ -1,6 +1,7 @@
 import { Sidebar } from "@/components/shared/Sidebar"
 import { TopNav } from "@/components/shared/TopNav"
 import { BottomNav } from "@/components/shared/BottomNav"
+import { WhatsAppButton } from "@/components/shared/WhatsAppButton"
 import { getAppUser } from "@/lib/auth"
 import { redirect } from "next/navigation"
 
@@ -22,6 +23,7 @@ export default async function MainLayout({ children }: { children: React.ReactNo
       </div>
 
       <BottomNav />
+      <WhatsAppButton />
     </div>
   )
 }
