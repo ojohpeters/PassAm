@@ -147,12 +147,19 @@
 .animate-blob-delay-4  { animation: blob 8s ease-in-out infinite 4s; }
 .animate-gradient-x    { animation: gradient-x 6s ease infinite; background-size: 300% 300%; }
 .animate-marquee       { animation: marquee 32s linear infinite; }
+
+@media (max-width: 768px) {
+  .animate-marquee     { animation-duration: 55s; }
+}
 .animate-bounce-y      { animation: bounce-y 1.6s ease-in-out infinite; }
 .animate-glow-pulse    { animation: glow-pulse 2.4s ease-in-out infinite; }
 .animate-book-3d       { animation: book-3d-float 7s ease-in-out infinite; }
 
 .reveal-hidden  { opacity: 0; transform: translateY(32px); }
 .reveal-visible { animation: reveal-up 0.65s cubic-bezier(.16,1,.3,1) forwards; }
+
+/* Dashboard entrance — usage: className="dash-in" style={{ animationDelay:"Xms" }} */
+.dash-in { animation: fadeInUp 0.5s cubic-bezier(.16,1,.3,1) both; }
 
 /* ============================================================
    BOOK LOADER

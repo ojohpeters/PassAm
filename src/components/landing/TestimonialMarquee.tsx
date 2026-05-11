@@ -1,5 +1,7 @@
 "use client"
 
+import { useState } from "react"
+
 const TESTIMONIALS = [
   { quote: "I went from 45% to 82% in three weeks. UNILAG I'm coming 🔥", name: "Chukwuemeka A.", school: "Targeting UNILAG" },
   { quote: "The daily quiz streak is genuinely addictive. Missed one day and I was so pained 😭", name: "Adaeze O.", school: "Targeting UI" },
@@ -30,13 +32,33 @@ function Card({ quote, name, school }: { quote: string; name: string; school: st
 
 export function TestimonialMarquee() {
   const doubled = [...TESTIMONIALS, ...TESTIMONIALS]
+  const [paused, setPaused] = useState(false)
 
   return (
-    <div className="overflow-hidden" style={{ maskImage: "linear-gradient(to right, transparent, black 8%, black 92%, transparent)" }}>
-      <div className="flex animate-marquee w-max">
-        {doubled.map((t, i) => (
-          <Card key={i} {...t} />
-        ))}
+    <div className="relative">
+      <div
+        className="group cursor-pointer overflow-hidden select-none"
+        style={{ maskImage: "linear-gradient(to right, transparent, black 8%, black 92%, transparent)" }}
+        onClick={() => setPaused(p => !p)}
+        aria-label={paused ? "Resume testimonials" : "Pause testimonials"}
+      >
+        <div
+          className="flex w-max animate-marquee group-hover:[animation-play-state:paused]"
+          style={{ animationPlayState: paused ? "paused" : undefined }}
+        >
+          {doubled.map((t, i) => (
+            <Card key={i} {...t} />
+          ))}
+        </div>
+      </div>
+
+      {/* Tap-to-pause hint — visible only on touch/small screens */}
+      <div
+        className={`pointer-events-none absolute inset-0 flex items-center justify-center transition-opacity duration-300 md:hidden ${paused ? "opacity-100" : "opacity-0"}`}
+      >
+        <div className="rounded-full bg-black/60 px-4 py-2 text-xs font-semibold text-white backdrop-blur-sm">
+          Tap to resume
+        </div>
       </div>
     </div>
   )
