@@ -4,6 +4,7 @@ import "./globals.css"
 import { Toaster } from "sonner"
 import { Suspense } from "react"
 import { NavigationProgress } from "@/components/shared/NavigationProgress"
+import { ChunkErrorHandler } from "@/components/shared/ChunkErrorHandler"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -69,6 +70,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className={inter.className}>
+        <ChunkErrorHandler />
         <Suspense>
           <NavigationProgress />
         </Suspense>
