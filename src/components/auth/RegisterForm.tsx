@@ -4,13 +4,15 @@ import { useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 import Link from "next/link"
-import { User, Mail, Lock, ArrowRight, Loader2 } from "lucide-react"
+import { User, Mail, Lock, ArrowRight, Loader2, Eye, EyeOff } from "lucide-react"
 
 const inputClass =
-  "w-full rounded-xl border bg-muted/30 py-3 pl-10 pr-4 text-sm outline-none transition-all placeholder:text-muted-foreground/60 focus:border-primary focus:bg-background focus:ring-2 focus:ring-primary/20"
+  "w-full rounded-xl border bg-muted/30 py-3 pl-10 pr-10 text-sm outline-none transition-all placeholder:text-muted-foreground/60 focus:border-primary focus:bg-background focus:ring-2 focus:ring-primary/20"
 
 export function RegisterForm() {
   const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -85,13 +87,22 @@ export function RegisterForm() {
           <input
             id="password"
             name="password"
-            type="password"
+            type={showPassword ? "text" : "password"}
             required
             minLength={8}
             autoComplete="new-password"
             className={inputClass}
             placeholder="Min. 8 characters"
           />
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            tabIndex={-1}
+            aria-label={showPassword ? "Hide password" : "Show password"}
+          >
+            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
         </div>
       </div>
 
@@ -102,12 +113,21 @@ export function RegisterForm() {
           <input
             id="confirmPassword"
             name="confirmPassword"
-            type="password"
+            type={showConfirm ? "text" : "password"}
             required
             autoComplete="new-password"
             className={inputClass}
             placeholder="Same password again"
           />
+          <button
+            type="button"
+            onClick={() => setShowConfirm((v) => !v)}
+            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            tabIndex={-1}
+            aria-label={showConfirm ? "Hide password" : "Show password"}
+          >
+            {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
         </div>
       </div>
 
