@@ -27,14 +27,11 @@ export function RegisterForm() {
 
     const result = await registerUser(fd)
 
-    if ("error" in result) {
+    if (result?.error) {
       toast.error(result.error)
       setLoading(false)
-      return
     }
-
-    // Server action set auth cookies in the response — hard redirect carries them
-    window.location.href = "/dashboard"
+    // On success the server action calls redirect() — no client code needed
   }
 
   return (

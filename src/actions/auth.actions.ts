@@ -7,19 +7,20 @@ import { redirect } from "next/navigation"
 
 export async function loginUser(
   formData: FormData
-): Promise<{ error: string } | { success: true }> {
+): Promise<{ error: string }> {
   const supabase = await createClient()
   const { error } = await supabase.auth.signInWithPassword({
     email: formData.get("email") as string,
     password: formData.get("password") as string,
   })
   if (error) return { error: "Invalid email or password." }
-  return { success: true }
+  const callbackUrl = (formData.get("callbackUrl") as string) || "/dashboard"
+  redirect(callbackUrl)
 }
 
 export async function registerUser(
   formData: FormData
-): Promise<{ error: string } | { success: true }> {
+): Promise<{ error: string }> {
   const parsed = registerSchema.safeParse({
     name: formData.get("name"),
     email: formData.get("email"),
@@ -54,7 +55,7 @@ export async function registerUser(
     subscription_status: "FREE",
   })
 
-  return { success: true }
+  redirect("/dashboard")
 }
 
 export async function signOutAction(): Promise<void> {

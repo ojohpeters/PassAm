@@ -18,16 +18,14 @@ export function LoginForm() {
     setLoading(true)
     const fd = new FormData(e.currentTarget)
 
+    fd.set("callbackUrl", callbackUrl)
     const result = await loginUser(fd)
 
-    if ("error" in result) {
+    if (result?.error) {
       toast.error(result.error)
       setLoading(false)
-      return
     }
-
-    // Server action set auth cookies in the response — hard redirect carries them
-    window.location.href = callbackUrl
+    // On success the server action calls redirect() — no client code needed
   }
 
   return (
