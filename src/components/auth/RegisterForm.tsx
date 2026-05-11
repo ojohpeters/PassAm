@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import Link from "next/link"
 import { User, Mail, Lock, ArrowRight, Loader2 } from "lucide-react"
@@ -12,7 +11,6 @@ const inputClass =
 
 export function RegisterForm() {
   const [loading, setLoading] = useState(false)
-  const router = useRouter()
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -42,8 +40,7 @@ export function RegisterForm() {
       return
     }
 
-    router.push("/dashboard")
-    router.refresh()
+    window.location.href = "/dashboard"
   }
 
   return (

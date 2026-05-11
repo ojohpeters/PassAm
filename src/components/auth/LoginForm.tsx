@@ -2,13 +2,12 @@
 
 import { useState } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import Link from "next/link"
 import { Mail, Lock, ArrowRight, Loader2 } from "lucide-react"
 
 export function LoginForm() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const callbackUrl = searchParams.get("callbackUrl") ?? "/dashboard"
   const [loading, setLoading] = useState(false)
@@ -30,8 +29,8 @@ export function LoginForm() {
       return
     }
 
-    router.push(callbackUrl)
-    router.refresh()
+    // Hard redirect so the browser sends auth cookies with the new request
+    window.location.href = callbackUrl
   }
 
   return (
