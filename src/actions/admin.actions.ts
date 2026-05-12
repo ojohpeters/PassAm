@@ -247,6 +247,99 @@ export async function getSubjects() {
   return subjects.map((s) => ({ ...s, questionCount: countMap[s.id] ?? 0 }))
 }
 
+export type CsvImportRow = {
+  text: string
+  option_a: string
+  option_b: string
+  option_c: string
+  option_d: string
+  correct: string
+  explanation: string
+  subject: string
+  year?: string
+}
+
+export async function bulkImportQuestions(
+  schoolId: string,
+  rows: CsvImportRow[]
+): Promise<ActionResult<{ created: number; failed: number; newSubjects: string[] }>> {
+  try {
+    await requireAdmin()
+  } catch {
+    return { success: false, error: "UNAUTHORIZED" }
+  }
+
+  if (!schoolId) return { success: false, error: "School is required" }
+  if (!rows.length) return { success: false, error: "No rows to import" }
+
+  const admin = createAdminClient()
+
+  // Load existing subjects
+  const { data: existingSubjects } = await admin.from("subjects").select("id, name")
+  const subjectMap = new Map<string, string>() // name.lower → id
+  for (const s of existingSubjects ?? []) {
+    subjectMap.set(s.name.toLowerCase().trim(), s.id)
+  }
+
+  // Find subjects that need to be created
+  const newSubjectNames: string[] = []
+  const uniqueSubjectNames = [...new Set(rows.map((r) => r.subject.trim()).filter(Boolean))]
+  for (const name of uniqueSubjectNames) {
+    if (!subjectMap.has(name.toLowerCase())) {
+      newSubjectNames.push(name)
+    }
+  }
+
+  // Create missing subjects
+  for (const name of newSubjectNames) {
+    const { data } = await admin.from("subjects").insert({ name }).select("id").single()
+    if (data) subjectMap.set(name.toLowerCase(), data.id)
+  }
+
+  let created = 0
+  let failed = 0
+
+  for (const row of rows) {
+    const subjectId = subjectMap.get(row.subject.trim().toLowerCase())
+    if (!subjectId) { failed++; continue }
+
+    const correctLabel = row.correct.trim().toUpperCase() as "A" | "B" | "C" | "D"
+    if (!["A", "B", "C", "D"].includes(correctLabel)) { failed++; continue }
+    if (!row.text?.trim() || !row.option_a?.trim() || !row.option_b?.trim() || !row.option_c?.trim() || !row.option_d?.trim()) {
+      failed++
+      continue
+    }
+
+    const yearNum = row.year ? parseInt(row.year, 10) : null
+    const year = yearNum && yearNum >= 1990 && yearNum <= new Date().getFullYear() ? yearNum : null
+
+    const { data: question, error } = await admin
+      .from("questions")
+      .insert({
+        text: row.text.trim(),
+        explanation: row.explanation?.trim() || null,
+        year,
+        school_id: schoolId,
+        subject_id: subjectId,
+        image_url: null,
+      })
+      .select("id")
+      .single()
+
+    if (error || !question) { failed++; continue }
+
+    await admin.from("options").insert([
+      { question_id: question.id, label: "A" as const, text: row.option_a.trim(), is_correct: correctLabel === "A" },
+      { question_id: question.id, label: "B" as const, text: row.option_b.trim(), is_correct: correctLabel === "B" },
+      { question_id: question.id, label: "C" as const, text: row.option_c.trim(), is_correct: correctLabel === "C" },
+      { question_id: question.id, label: "D" as const, text: row.option_d.trim(), is_correct: correctLabel === "D" },
+    ])
+    created++
+  }
+
+  return { success: true, data: { created, failed, newSubjects: newSubjectNames } }
+}
+
 // ── Student management ────────────────────────────────────────────────────────
 
 export async function getStudents(page = 1, search = "") {

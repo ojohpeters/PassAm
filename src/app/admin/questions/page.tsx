@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin"
 import Link from "next/link"
-import { BookOpen, Plus, Hash } from "lucide-react"
+import { BookOpen, Plus, Hash, Upload } from "lucide-react"
 import { QuestionsClient } from "./QuestionsClient"
 
 export default async function QuestionsPage() {
@@ -35,13 +35,22 @@ export default async function QuestionsPage() {
           <h1 className="text-2xl font-black tracking-tight">Questions</h1>
           <p className="text-sm text-muted-foreground">{(total ?? 0).toLocaleString()} questions in the bank</p>
         </div>
-        <Link
-          href="/admin/questions/new"
-          className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground shadow-sm transition-all hover:opacity-90 hover:shadow-md active:scale-[0.98]"
-        >
-          <Plus className="h-4 w-4" />
-          Add Questions
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/admin/questions/import"
+            className="flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-bold transition-all hover:bg-muted active:scale-[0.98]"
+          >
+            <Upload className="h-4 w-4" />
+            Bulk Import
+          </Link>
+          <Link
+            href="/admin/questions/new"
+            className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground shadow-sm transition-all hover:opacity-90 hover:shadow-md active:scale-[0.98]"
+          >
+            <Plus className="h-4 w-4" />
+            Add Question
+          </Link>
+        </div>
       </div>
 
       {/* By school */}
