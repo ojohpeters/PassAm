@@ -25,7 +25,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         {/* Mobile compact header */}
         <div className="relative flex items-center justify-between p-5 lg:hidden">
           <Link href="/" className="flex items-center">
-            <Image src="/prepiqlogo.png" alt="PrepIQ" width={110} height={36} className="h-9 w-auto object-contain" priority />
+            <Image src="/prepsiqlogo.png" alt="PrepIQ" width={110} height={36} className="h-9 w-auto object-contain" priority />
           </Link>
           <Link
             href="/"
@@ -50,7 +50,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <div className="relative hidden lg:flex lg:flex-col lg:justify-between lg:h-full">
           {/* Logo */}
           <Link href="/" className="flex items-center">
-            <Image src="/prepiqlogo.png" alt="PrepIQ" width={140} height={44} className="h-11 w-auto object-contain" priority />
+            <Image src="/prepsiqlogo.png" alt="PrepIQ" width={140} height={44} className="h-11 w-auto object-contain" priority />
           </Link>
 
           {/* Copy */}

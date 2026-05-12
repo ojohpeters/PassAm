@@ -22,7 +22,7 @@ export default function AboutPage() {
       <header className="sticky top-0 z-50 border-b border-white/10 bg-[#050d1f]/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-2.5 sm:px-6">
           <Link href="/" className="flex items-center">
-            <Image src="/prepiqlogo.png" alt="PrepIQ" width={110} height={36} className="h-9 w-auto object-contain" priority />
+            <Image src="/prepsiqlogo.png" alt="PrepIQ" width={110} height={36} className="h-9 w-auto object-contain" priority />
           </Link>
           <div className="flex items-center gap-2">
             <Link
@@ -45,7 +45,7 @@ export default function AboutPage() {
       <div className="bg-gradient-to-br from-[#1a3a7c] to-[#0d2254] px-5 py-12 text-white text-center">
         <div className="mx-auto max-w-lg">
           <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-3xl bg-white/10 ring-2 ring-white/20 backdrop-blur-sm overflow-hidden">
-            <Image src="/prepiqlogo.png" alt="PrepIQ" width={96} height={96} className="h-full w-full object-contain" />
+            <Image src="/prepsiqlogo.png" alt="PrepIQ" width={96} height={96} className="h-full w-full object-contain" />
           </div>
           <h1 className="text-3xl font-black tracking-tight">PrepIQ</h1>
           <p className="mt-2 text-base font-semibold text-white/80 italic">Practise like it&apos;s real. Pass like it&apos;s easy.</p>

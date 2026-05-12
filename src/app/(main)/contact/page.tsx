@@ -21,7 +21,7 @@ export default function ContactPage() {
       <div className="bg-gradient-to-br from-[#1a3a7c] to-[#0d2254] px-5 py-12 text-white text-center">
         <div className="mx-auto max-w-lg">
           <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-3xl bg-white/10 ring-2 ring-white/20 backdrop-blur-sm overflow-hidden">
-            <Image src="/prepiqlogo.png" alt="PrepIQ" width={96} height={96} className="h-full w-full object-contain" />
+            <Image src="/prepsiqlogo.png" alt="PrepIQ" width={96} height={96} className="h-full w-full object-contain" />
           </div>
           <h1 className="text-3xl font-black tracking-tight">PrepIQ</h1>
           <p className="mt-2 text-base font-semibold text-white/80 italic">Practise like it&apos;s real. Pass like it&apos;s easy.</p>

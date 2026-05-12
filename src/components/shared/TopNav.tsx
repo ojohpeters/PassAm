@@ -15,7 +15,7 @@ export async function TopNav() {
   return (
     <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b bg-background/90 px-4 backdrop-blur-xl">
       <Link href="/dashboard" className="flex items-center">
-        <Image src="/prepiqlogo.png" alt="PrepIQ" width={120} height={40} className="h-10 w-auto object-contain" priority />
+        <Image src="/prepsiqlogo.png" alt="PrepIQ" width={120} height={40} className="h-10 w-auto object-contain" priority />
       </Link>
 
       <div className="flex items-center gap-3">
