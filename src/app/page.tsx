@@ -199,7 +199,7 @@ export default async function LandingPage() {
                   I have an account →
                 </Link>
               </div>
-              <p className="mt-3.5 text-xs text-white/35">No credit card · No wahala · Cancel anytime</p>
+              <p className="mt-3.5 text-xs text-white/35">100% free · No credit card needed</p>
             </div>
 
             {/* 3D Animation — desktop */}
@@ -504,7 +504,7 @@ export default async function LandingPage() {
             I&apos;m ready — let&apos;s go 🚀
             <ArrowRight className="h-4 w-4" />
           </Link>
-          <p className="text-xs text-white/30 pt-1">No credit card · No wahala · Just grind 💪</p>
+          <p className="text-xs text-white/30 pt-1">100% free · Just grind 💪</p>
         </ScrollReveal>
       </section>
 
