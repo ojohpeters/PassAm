@@ -102,7 +102,13 @@ export default async function LandingPage() {
               priority
             />
           </Link>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
+            <Link
+              href="/about"
+              className="hidden rounded-lg px-3 py-2 text-sm font-medium text-white/70 transition-colors hover:text-white sm:block"
+            >
+              About
+            </Link>
             <Link
               href="/login"
               className="hidden rounded-lg px-3 py-2 text-sm font-medium text-white/70 transition-colors hover:text-white sm:block"
@@ -510,6 +516,7 @@ export default async function LandingPage() {
           </div>
           <p>© {new Date().getFullYear()} PassAm. Built for Nigerian students. 🇳🇬</p>
           <div className="flex gap-6">
+            <Link href="/about" className="transition-colors hover:text-foreground">About</Link>
             <Link href="/login" className="transition-colors hover:text-foreground">Sign in</Link>
             <Link href="/register" className="transition-colors hover:text-foreground">Register</Link>
           </div>
