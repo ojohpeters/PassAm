@@ -53,6 +53,11 @@ export async function getCommunityMembers(): Promise<CommunityMember[]> {
     .select("id, name, abbreviation")
     .neq("abbreviation", "GENERAL")
 
+  // target_school is stored as the abbreviation (from the profile form select value)
+  // but fall back to name matching in case older records used the full name
+  const schoolByAbbr = new Map(
+    (schools ?? []).map((s) => [s.abbreviation.toLowerCase(), s])
+  )
   const schoolByName = new Map(
     (schools ?? []).map((s) => [s.name.toLowerCase(), s])
   )
@@ -61,7 +66,9 @@ export async function getCommunityMembers(): Promise<CommunityMember[]> {
     ...m,
     whatsapp_number: m.whatsapp_number!,
     school: m.target_school
-      ? (schoolByName.get(m.target_school.toLowerCase()) ?? null)
+      ? (schoolByAbbr.get(m.target_school.toLowerCase()) ??
+         schoolByName.get(m.target_school.toLowerCase()) ??
+         null)
       : null,
   }))
 }
