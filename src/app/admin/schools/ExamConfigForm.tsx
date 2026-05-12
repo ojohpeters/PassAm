@@ -4,7 +4,6 @@ import { useTransition, useState } from "react"
 import { saveExamConfig } from "@/actions/school.actions"
 import { toast } from "sonner"
 import { ChevronDown, ChevronUp, Loader2, Save } from "lucide-react"
-import { cn } from "@/lib/utils"
 
 type Subject = { id: string; name: string; questionCount: number }
 type Props = {
@@ -27,9 +26,25 @@ export function ExamConfigForm({
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
 
-  function handleSave(formData: FormData) {
+  // Controlled state so values persist correctly after save
+  const [total, setTotal] = useState(totalQuestions)
+  const [subjectValues, setSubjectValues] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      subjects.map((s) => [s.id, configuredSubjectCounts[s.id]?.toString() ?? ""])
+    )
+  )
+
+  function handleSave(e: React.FormEvent) {
+    e.preventDefault()
+    const fd = new FormData()
+    fd.append("school_id", schoolId)
+    fd.append("total_questions", total.toString())
+    for (const [subjectId, val] of Object.entries(subjectValues)) {
+      if (val.trim() !== "") fd.append(`subject_count_${subjectId}`, val)
+    }
+
     startTransition(async () => {
-      const result = await saveExamConfig(formData)
+      const result = await saveExamConfig(fd)
       if (result.success) {
         toast.success(`${abbreviation} exam config saved`)
       } else {
@@ -54,7 +69,7 @@ export function ExamConfigForm({
           <div>
             <p className="font-semibold text-sm">{schoolName}</p>
             <p className="text-xs text-muted-foreground">
-              {totalQuestions} questions · {totalAvailable} available in DB
+              {total} questions per exam · {totalAvailable} available in DB
             </p>
           </div>
         </div>
@@ -65,8 +80,7 @@ export function ExamConfigForm({
       </button>
 
       {open && (
-        <form action={handleSave} className="border-t px-5 py-4 space-y-4">
-          <input type="hidden" name="school_id" value={schoolId} />
+        <form onSubmit={handleSave} className="border-t px-5 py-4 space-y-5">
 
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -74,8 +88,8 @@ export function ExamConfigForm({
             </label>
             <input
               type="number"
-              name="total_questions"
-              defaultValue={totalQuestions}
+              value={total}
+              onChange={(e) => setTotal(Number(e.target.value))}
               min={1}
               max={200}
               required
@@ -83,31 +97,33 @@ export function ExamConfigForm({
             />
           </div>
 
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Questions Per Subject
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Leave empty to auto-split evenly. Set a number to override for that subject.
-            </p>
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Questions Per Subject
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Leave blank to split evenly. Type a number to fix that subject's count.
+              </p>
+            </div>
+
             <div className="grid gap-2 sm:grid-cols-2">
               {subjects.map((s) => (
-                <div key={s.id} className="flex items-center gap-3 rounded-xl border px-3 py-2.5">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{s.name}</p>
-                    <p className="text-xs text-muted-foreground">{s.questionCount} in DB</p>
+                <div key={s.id} className="rounded-xl border bg-muted/20 px-4 py-3">
+                  <div className="mb-2">
+                    <p className="text-sm font-semibold">{s.name}</p>
+                    <p className="text-xs text-muted-foreground">{s.questionCount} questions in DB</p>
                   </div>
                   <input
                     type="number"
-                    name={`subject_count_${s.id}`}
-                    defaultValue={configuredSubjectCounts[s.id] ?? ""}
-                    placeholder="Auto"
-                    min={0}
+                    value={subjectValues[s.id] ?? ""}
+                    onChange={(e) =>
+                      setSubjectValues((prev) => ({ ...prev, [s.id]: e.target.value }))
+                    }
+                    placeholder={`Auto (~${Math.floor(total / subjects.length)})`}
+                    min={1}
                     max={s.questionCount}
-                    className={cn(
-                      "w-20 rounded-lg border bg-muted/50 px-2 py-1.5 text-center text-sm font-semibold outline-none",
-                      "ring-primary/40 transition-all focus:border-primary focus:ring-2"
-                    )}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold outline-none ring-primary/40 transition-all focus:border-primary focus:ring-2 placeholder:font-normal placeholder:text-muted-foreground"
                   />
                 </div>
               ))}

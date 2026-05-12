@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { startExam } from "@/actions/exam.actions"
 import { toast } from "sonner"
-import { Check, Clock, Lock, Loader2, Zap, LayoutGrid, Crown } from "lucide-react"
+import { Check, Clock, Loader2, Zap, LayoutGrid } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 type Subject = { id: string; name: string }
@@ -14,8 +14,6 @@ type Props = {
   schoolSlug: string
   subjects: Subject[]
   subjectCounts: Record<string, number>
-  quotaLeft: number | null
-  canStart: boolean
 }
 
 const PRESETS = [
@@ -33,13 +31,13 @@ const SCHOOL_COLORS: Record<string, string> = {
   AFIT:    "from-rose-600 to-rose-900",
 }
 
-export function SubjectPicker({ school, schoolSlug, subjects, subjectCounts, quotaLeft, canStart }: Props) {
+export function SubjectPicker({ school, schoolSlug, subjects, subjectCounts }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
 
   const englishSubject = subjects.find((s) => s.name === "English Language")
-  const otherSubjects  = subjects.filter((s) => s.name !== "English Language")
 
+  // Pre-select English by default, but it's toggleable like any other subject
   const [selected, setSelected] = useState<Set<string>>(
     new Set(englishSubject ? [englishSubject.id] : [])
   )
@@ -60,7 +58,7 @@ export function SubjectPicker({ school, schoolSlug, subjects, subjectCounts, quo
   const selectedCount = selected.size
   const totalQuestions = 40
   const perSubject = selectedCount > 0 ? Math.floor(totalQuestions / selectedCount) : 0
-  const canBegin = canStart && selectedCount >= 1
+  const canBegin = selectedCount >= 1
   const gradient = SCHOOL_COLORS[school.abbreviation] ?? "from-slate-600 to-slate-900"
 
   async function handleStart() {
@@ -69,7 +67,6 @@ export function SubjectPicker({ school, schoolSlug, subjects, subjectCounts, quo
     const result = await startExam(school.id, Array.from(selected))
     if (!result.success) {
       const msg =
-        result.error === "QUOTA_EXCEEDED"         ? "You've used your 3 free exams this month. Upgrade for unlimited access." :
         result.error === "INSUFFICIENT_QUESTIONS" ? "Not enough questions for a subject you selected. Try a different combo." :
         result.error === "NO_SUBJECTS"            ? "Please select at least 1 subject." :
         "Failed to start exam. Please try again."
@@ -87,7 +84,7 @@ export function SubjectPicker({ school, schoolSlug, subjects, subjectCounts, quo
   return (
     <div className="min-h-full bg-background pb-12">
 
-      {/* ── School hero banner ── */}
+      {/* ── School hero ── */}
       <div className={cn("bg-gradient-to-br px-5 py-8 text-white md:px-8", gradient)}>
         <div className="mx-auto max-w-lg">
           <p className="text-xs font-bold uppercase tracking-widest text-white/70">POST-UTME Practice</p>
@@ -109,31 +106,11 @@ export function SubjectPicker({ school, schoolSlug, subjects, subjectCounts, quo
 
       <div className="mx-auto max-w-lg space-y-6 px-4 pt-6 md:px-6">
 
-        {/* ── Quota warning ── */}
-        {!canStart && (
-          <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800/50 dark:bg-amber-950/30">
-            <Crown className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
-            <div>
-              <p className="text-sm font-bold text-amber-800 dark:text-amber-300">Free quota reached</p>
-              <p className="text-xs text-amber-700 dark:text-amber-400">You&apos;ve used all 3 free exams this month. Upgrade to Pro for unlimited access.</p>
-            </div>
-          </div>
-        )}
-
-        {quotaLeft !== null && canStart && (
-          <div className="flex items-center gap-2 rounded-2xl border bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
-            <LayoutGrid className="h-3.5 w-3.5 shrink-0" />
-            <span>
-              <strong className="text-foreground">{quotaLeft}</strong> of 3 free exams remaining this month
-            </span>
-          </div>
-        )}
-
         {/* ── Per-subject stat ── */}
         {selectedCount >= 1 && (
           <div className="flex items-center justify-between rounded-2xl border bg-primary/5 border-primary/20 px-4 py-3">
             <span className="text-sm font-semibold text-primary">~{perSubject} questions per subject</span>
-            <span className="text-xs text-muted-foreground">{selectedCount} subjects selected</span>
+            <span className="text-xs text-muted-foreground">{selectedCount} subject{selectedCount !== 1 ? "s" : ""} selected</span>
           </div>
         )}
 
@@ -166,23 +143,9 @@ export function SubjectPicker({ school, schoolSlug, subjects, subjectCounts, quo
           </div>
 
           <div className="space-y-2">
-            {/* English — always locked */}
-            {englishSubject && (
-              <div className="flex items-center gap-3 rounded-2xl border-2 border-primary/40 bg-primary/5 p-4">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary shadow-sm">
-                  <Lock className="h-3.5 w-3.5 text-primary-foreground" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold">{englishSubject.name}</p>
-                  <p className="text-xs text-muted-foreground">{subjectCounts[englishSubject.id] ?? 0} questions · compulsory for all courses</p>
-                </div>
-                <span className="shrink-0 rounded-full bg-primary px-2.5 py-1 text-[10px] font-black text-primary-foreground">FIXED</span>
-              </div>
-            )}
-
-            {/* Elective subjects */}
-            {otherSubjects.map((s) => {
+            {subjects.map((s) => {
               const on = selected.has(s.id)
+              const isEnglish = s.name === "English Language"
               return (
                 <button
                   key={s.id}
@@ -201,7 +164,12 @@ export function SubjectPicker({ school, schoolSlug, subjects, subjectCounts, quo
                     {on && <Check className="h-4 w-4 text-primary-foreground" />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className={cn("text-sm font-bold", on ? "text-primary" : "text-foreground")}>{s.name}</p>
+                    <p className={cn("text-sm font-bold", on ? "text-primary" : "text-foreground")}>
+                      {s.name}
+                      {isEnglish && (
+                        <span className="ml-2 text-[10px] font-semibold text-muted-foreground">(recommended)</span>
+                      )}
+                    </p>
                     <p className="text-xs text-muted-foreground">{subjectCounts[s.id] ?? 0} questions available</p>
                   </div>
                   {on && (
@@ -228,8 +196,6 @@ export function SubjectPicker({ school, schoolSlug, subjects, subjectCounts, quo
         >
           {loading ? (
             <><Loader2 className="h-5 w-5 animate-spin" /> Building your paper…</>
-          ) : !canStart ? (
-            <><Crown className="h-5 w-5" /> Upgrade to Pro</>
           ) : selectedCount < 1 ? (
             "Select at least 1 subject"
           ) : (
@@ -237,7 +203,6 @@ export function SubjectPicker({ school, schoolSlug, subjects, subjectCounts, quo
           )}
         </button>
 
-        {/* Exam info footer */}
         <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
           {[
             { icon: Clock, text: "60 min timer" },

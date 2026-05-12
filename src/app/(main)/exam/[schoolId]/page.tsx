@@ -40,27 +40,12 @@ export default async function ExamStartPage({
     a.name.localeCompare(b.name)
   )
 
-  const startOfMonth = new Date()
-  startOfMonth.setDate(1)
-  startOfMonth.setHours(0, 0, 0, 0)
-  const { count: usedThisMonth } = await admin
-    .from("exam_attempts")
-    .select("*", { count: "exact", head: true })
-    .eq("user_id", user.id)
-    .gte("created_at", startOfMonth.toISOString())
-
-  const isPro = user.subscriptionStatus !== "FREE"
-  const quotaLeft = isPro ? null : Math.max(0, 3 - (usedThisMonth ?? 0))
-  const canStart = isPro || (quotaLeft ?? 0) > 0
-
   return (
     <SubjectPicker
       school={school}
       schoolSlug={params.schoolId}
       subjects={availableSubjects}
       subjectCounts={subjectCounts}
-      quotaLeft={quotaLeft}
-      canStart={canStart}
     />
   )
 }

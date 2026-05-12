@@ -21,22 +21,6 @@ export async function startExam(
 
   const admin = createAdminClient()
 
-  if (user.subscriptionStatus === "FREE") {
-    const startOfMonth = new Date()
-    startOfMonth.setDate(1)
-    startOfMonth.setHours(0, 0, 0, 0)
-
-    const { count: monthlyCount } = await admin
-      .from("exam_attempts")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id)
-      .gte("created_at", startOfMonth.toISOString())
-
-    if ((monthlyCount ?? 0) >= FREE_TIER_MONTHLY_LIMIT) {
-      return { success: false, error: "QUOTA_EXCEEDED" }
-    }
-  }
-
   const { data: school } = await admin
     .from("schools")
     .select("id")
