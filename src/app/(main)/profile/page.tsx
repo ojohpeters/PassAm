@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { getDashboardStats } from "@/actions/analytics.actions"
 import { getStudentRank } from "@/actions/leaderboard.actions"
 import { ProfileEditForm } from "@/components/profile/ProfileEditForm"
+import { CommunitySettingsForm } from "@/components/profile/CommunitySettingsForm"
 import { redirect } from "next/navigation"
 import { cn, todayWAT } from "@/lib/utils"
 import { BookOpen, Flame, Target, Trophy, TrendingUp } from "lucide-react"
@@ -281,6 +282,17 @@ export default async function ProfilePage() {
               ? `🔥 ${curStreak} days strong! 7 days unlocks "Week Warrior" — you're close!`
               : `🏆 Incredible — ${curStreak}-day streak! You're top-tier material.`}
           </p>
+        </div>
+      </div>
+
+      {/* ── Community / WhatsApp ── */}
+      <div className="dash-in space-y-3" style={{ animationDelay: "270ms" }}>
+        <h2 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">Community</h2>
+        <div className="rounded-2xl border bg-background p-5">
+          <CommunitySettingsForm
+            initialNumber={profile?.whatsapp_number ?? null}
+            initialVisible={profile?.show_whatsapp ?? false}
+          />
         </div>
       </div>
 

@@ -16,6 +16,8 @@ export interface Database {
           is_banned: boolean
           aspiring_course: string | null
           student_subject_ids: string[] | null
+          whatsapp_number: string | null
+          show_whatsapp: boolean
           created_at: string
           updated_at: string
         }
@@ -31,6 +33,8 @@ export interface Database {
           is_banned?: boolean
           aspiring_course?: string | null
           student_subject_ids?: string[] | null
+          whatsapp_number?: string | null
+          show_whatsapp?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -46,9 +50,29 @@ export interface Database {
           is_banned?: boolean
           aspiring_course?: string | null
           student_subject_ids?: string[] | null
+          whatsapp_number?: string | null
+          show_whatsapp?: boolean
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
+      }
+      log_attendants: {
+        Row: { id: string; user_id: string; granted_by: string | null; created_at: string }
+        Insert: { id?: string; user_id: string; granted_by?: string | null; created_at?: string }
+        Update: { id?: string; user_id?: string; granted_by?: string | null }
+        Relationships: []
+      }
+      brainstorm_sessions: {
+        Row: { id: string; session_date: string; title: string | null; created_by: string | null; created_at: string }
+        Insert: { id?: string; session_date?: string; title?: string | null; created_by?: string | null; created_at?: string }
+        Update: { id?: string; session_date?: string; title?: string | null; created_by?: string | null }
+        Relationships: []
+      }
+      brainstorm_attendance: {
+        Row: { id: string; session_id: string; student_id: string; first_answers: number; logged_by: string | null; created_at: string }
+        Insert: { id?: string; session_id: string; student_id: string; first_answers?: number; logged_by?: string | null; created_at?: string }
+        Update: { id?: string; session_id?: string; student_id?: string; first_answers?: number; logged_by?: string | null }
         Relationships: []
       }
       school_exam_config: {

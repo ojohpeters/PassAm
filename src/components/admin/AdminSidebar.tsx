@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { LayoutDashboard, BookOpen, Users, Bell, MessageSquare, ChevronLeft, LogOut, BookMarked, School, Library, Building2, Lightbulb } from "lucide-react"
+import { LayoutDashboard, BookOpen, Users, Bell, MessageSquare, ChevronLeft, LogOut, BookMarked, School, Library, Building2, Lightbulb, ClipboardList } from "lucide-react"
 import { signOutAction } from "@/actions/auth.actions"
 
 const NAV = [
@@ -16,6 +16,7 @@ const NAV = [
   { href: "/admin/students",      label: "Students",       icon: Users                        },
   { href: "/admin/notifications", label: "Notifications",  icon: Bell                         },
   { href: "/admin/feedback",      label: "Reports",        icon: MessageSquare                },
+  { href: "/admin/log-attendants", label: "Log Attendants", icon: ClipboardList                },
 ]
 
 export function AdminSidebar({ onClose }: { onClose?: () => void }) {
