@@ -83,9 +83,6 @@ export async function startExam(
     selected.push(...picked)
   }
 
-  // Shuffle so subjects aren't grouped
-  selected.sort(() => Math.random() - 0.5)
-
   const { data: attempt, error: attemptErr } = await admin
     .from("exam_attempts")
     .insert({
