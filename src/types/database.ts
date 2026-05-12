@@ -81,6 +81,8 @@ export interface Database {
           school_id: string
           total_questions: number
           subject_question_counts: Json
+          duration_mins: number
+          required_subject_ids: string[]
           created_at: string
           updated_at: string
         }
@@ -89,6 +91,8 @@ export interface Database {
           school_id: string
           total_questions?: number
           subject_question_counts?: Json
+          duration_mins?: number
+          required_subject_ids?: string[]
           created_at?: string
           updated_at?: string
         }
@@ -97,6 +101,8 @@ export interface Database {
           school_id?: string
           total_questions?: number
           subject_question_counts?: Json
+          duration_mins?: number
+          required_subject_ids?: string[]
           created_at?: string
           updated_at?: string
         }

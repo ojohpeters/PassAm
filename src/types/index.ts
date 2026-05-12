@@ -2,6 +2,17 @@ export type ActionResult<T> =
   | { success: true; data: T }
   | { success: false; error: string }
 
+export type StudyQuestion = {
+  id: string
+  text: string
+  image_url: string | null
+  explanation: string | null
+  year: number | null
+  subject_id: string
+  subject: { name: string }
+  options: { id: string; label: "A" | "B" | "C" | "D"; text: string; is_correct: boolean }[]
+}
+
 export type QuestionWithOptions = {
   id: string
   text: string

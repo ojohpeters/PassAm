@@ -11,9 +11,13 @@ export async function saveExamConfig(formData: FormData) {
 
   const schoolId = formData.get("school_id") as string
   const totalQuestions = parseInt(formData.get("total_questions") as string, 10)
+  const durationMins = parseInt(formData.get("duration_mins") as string, 10)
 
   if (!schoolId || isNaN(totalQuestions) || totalQuestions < 1 || totalQuestions > 200) {
     return { success: false as const, error: "Invalid input" }
+  }
+  if (isNaN(durationMins) || durationMins < 1 || durationMins > 360) {
+    return { success: false as const, error: "Duration must be 1–360 minutes" }
   }
 
   // Collect per-subject counts: subject_count_<subjectId> fields
@@ -28,6 +32,14 @@ export async function saveExamConfig(formData: FormData) {
     }
   }
 
+  // Collect required subject IDs: required_subject_<subjectId> = "1"
+  const requiredSubjectIds: string[] = []
+  for (const [key] of formData.entries()) {
+    if (key.startsWith("required_subject_")) {
+      requiredSubjectIds.push(key.replace("required_subject_", ""))
+    }
+  }
+
   const admin = createAdminClient()
 
   const { error } = await admin
@@ -37,6 +49,8 @@ export async function saveExamConfig(formData: FormData) {
         school_id: schoolId,
         total_questions: totalQuestions,
         subject_question_counts: subjectCounts,
+        duration_mins: durationMins,
+        required_subject_ids: requiredSubjectIds,
       },
       { onConflict: "school_id" }
     )

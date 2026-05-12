@@ -9,13 +9,15 @@ export default async function ExamSessionPage({
   searchParams,
 }: {
   params: { schoolId: string }
-  searchParams: { attempt?: string }
+  searchParams: { attempt?: string; time?: string }
 }) {
   const user = await getAppUser()
   if (!user) redirect("/login")
 
   const attemptId = searchParams.attempt
   if (!attemptId) redirect(`/exam/${params.schoolId}`)
+
+  const timeLimitSecs = searchParams.time ? parseInt(searchParams.time, 10) : 3600
 
   const admin = createAdminClient()
 
@@ -44,6 +46,6 @@ export default async function ExamSessionPage({
     .filter(Boolean) as unknown as QuestionWithOptions[]
 
   return (
-    <ExamShell attemptId={attempt.id} questions={questions} timeLimitSecs={3600} />
+    <ExamShell attemptId={attempt.id} questions={questions} timeLimitSecs={timeLimitSecs} />
   )
 }

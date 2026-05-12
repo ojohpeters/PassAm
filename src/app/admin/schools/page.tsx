@@ -16,7 +16,7 @@ export default async function AdminSchoolsPage() {
   const [{ data: schools }, { data: subjects }, { data: configs }] = await Promise.all([
     admin.from("schools").select("id, name, abbreviation").order("name"),
     admin.from("subjects").select("id, name").order("name"),
-    admin.from("school_exam_config").select("school_id, total_questions, subject_question_counts"),
+    admin.from("school_exam_config").select("school_id, total_questions, subject_question_counts, duration_mins, required_subject_ids"),
   ])
 
   // Count questions per school per subject
@@ -71,6 +71,8 @@ export default async function AdminSchoolsPage() {
               schoolName={school.name}
               abbreviation={school.abbreviation}
               totalQuestions={cfg?.total_questions ?? 40}
+              durationMins={cfg?.duration_mins ?? 60}
+              requiredSubjectIds={(cfg?.required_subject_ids as string[]) ?? []}
               subjects={subjectsWithCounts}
               configuredSubjectCounts={(cfg?.subject_question_counts as Record<string, number>) ?? {}}
             />

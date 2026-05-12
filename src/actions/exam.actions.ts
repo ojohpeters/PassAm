@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { getAppUser } from "@/lib/auth"
 import { submitExamSchema } from "@/lib/validations/exam"
 import { updateStreak } from "./notification.actions"
-import type { ActionResult, QuestionWithOptions, ExamResult } from "@/types"
+import type { ActionResult, QuestionWithOptions, ExamResult, StudyQuestion } from "@/types"
 
 const EXAM_QUESTION_COUNT = 40
 const EXAM_TIME_LIMIT_SECS = 3600
@@ -65,15 +65,15 @@ export async function startExam(
     .single()
   if (!school) return { success: false, error: "NOT_FOUND" }
 
-  // Student-chosen total takes priority; fall back to school config only when student uses default
   const { data: cfg } = await admin
     .from("school_exam_config")
-    .select("total_questions, subject_question_counts")
+    .select("total_questions, subject_question_counts, duration_mins")
     .eq("school_id", schoolId)
     .single()
 
   const totalTarget = clampedTotal
   const subjectCfg: Record<string, number> = (cfg?.subject_question_counts as Record<string, number>) ?? {}
+  const timeLimitSecs = cfg?.duration_mins ? cfg.duration_mins * 60 : clampedTotal * SECS_PER_QUESTION
 
   const selected: QuestionWithOptions[] = []
 
@@ -126,7 +126,7 @@ export async function startExam(
 
   return {
     success: true,
-    data: { attemptId: attempt.id, questions: selected, timeLimitSecs: selected.length * SECS_PER_QUESTION },
+    data: { attemptId: attempt.id, questions: selected, timeLimitSecs },
   }
 }
 
@@ -367,4 +367,44 @@ export async function getAttemptHistory(page = 1, limit = 10) {
     success: true,
     data: { attempts: shaped, total, pages: Math.ceil(total / limit) },
   } as const
+}
+
+// ── Study Mode ────────────────────────────────────────────────────────────────
+// Fetches questions for a study session. No exam_attempt is created; results
+// are never persisted. Options include is_correct so instant feedback can work.
+export async function getStudyQuestions(
+  configs: { subjectId: string; count: number }[],
+  schoolId: string
+): Promise<ActionResult<StudyQuestion[]>> {
+  const user = await getAppUser()
+  if (!user) return { success: false, error: "UNAUTHORIZED" }
+
+  if (!configs.length) return { success: false, error: "NO_SUBJECTS" }
+
+  const admin = createAdminClient()
+
+  const selected: StudyQuestion[] = []
+
+  for (const { subjectId, count } of configs) {
+    const take = Math.min(50, Math.max(1, count))
+
+    const { data: pool } = await admin
+      .from("questions")
+      .select(`
+        id, text, image_url, explanation, year, subject_id,
+        options(id, label, text, is_correct),
+        subject:subjects(name)
+      `)
+      .eq("school_id", schoolId)
+      .eq("subject_id", subjectId)
+
+    if (!pool || pool.length === 0) continue
+
+    const shuffled = [...pool].sort(() => Math.random() - 0.5)
+    selected.push(...(shuffled.slice(0, take) as unknown as StudyQuestion[]))
+  }
+
+  if (!selected.length) return { success: false, error: "INSUFFICIENT_QUESTIONS" }
+
+  return { success: true, data: selected }
 }
