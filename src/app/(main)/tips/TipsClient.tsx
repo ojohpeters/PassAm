@@ -60,7 +60,7 @@ function TipCard({ tip }: { tip: StudyTip }) {
 
       {/* Footer */}
       <div className="border-t bg-muted/20 px-5 py-2.5">
-        <p className="text-[11px] text-muted-foreground">Posted {date} · by Ojochegbe</p>
+        <p className="text-[11px] text-muted-foreground">Posted {date} · by PassAm</p>
       </div>
     </div>
   )
@@ -102,7 +102,7 @@ export function TipsClient({
         <div className="flex flex-col items-center justify-center rounded-2xl border bg-background py-16 text-center">
           <BookOpen className="mb-3 h-10 w-10 text-muted-foreground/30" />
           <p className="font-semibold text-muted-foreground">No tips in this category yet</p>
-          <p className="mt-1 text-sm text-muted-foreground/70">Check back soon — Ojochegbe is cooking something 🔥</p>
+          <p className="mt-1 text-sm text-muted-foreground/70">Check back soon — PassAm is cooking something 🔥</p>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
