@@ -98,7 +98,7 @@ export default function ContactPage() {
                 <WhatsAppIcon className="h-5 w-5 text-[#25D366]" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm">PassAm Channel</p>
+                <p className="font-semibold text-sm">Interactive Study Channel</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   Announcements, tips, exam updates — follow to stay in the loop
                 </p>
