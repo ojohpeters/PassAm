@@ -60,7 +60,7 @@ export function SubjectPicker({ school, schoolSlug, subjects, subjectCounts, quo
   const selectedCount = selected.size
   const totalQuestions = 40
   const perSubject = selectedCount > 0 ? Math.floor(totalQuestions / selectedCount) : 0
-  const canBegin = canStart && selectedCount >= 2
+  const canBegin = canStart && selectedCount >= 1
   const gradient = SCHOOL_COLORS[school.abbreviation] ?? "from-slate-600 to-slate-900"
 
   async function handleStart() {
@@ -71,7 +71,7 @@ export function SubjectPicker({ school, schoolSlug, subjects, subjectCounts, quo
       const msg =
         result.error === "QUOTA_EXCEEDED"         ? "You've used your 3 free exams this month. Upgrade for unlimited access." :
         result.error === "INSUFFICIENT_QUESTIONS" ? "Not enough questions for a subject you selected. Try a different combo." :
-        result.error === "NO_SUBJECTS"            ? "Please select at least 2 subjects." :
+        result.error === "NO_SUBJECTS"            ? "Please select at least 1 subject." :
         "Failed to start exam. Please try again."
       toast.error(msg)
       setLoading(false)
@@ -130,7 +130,7 @@ export function SubjectPicker({ school, schoolSlug, subjects, subjectCounts, quo
         )}
 
         {/* ── Per-subject stat ── */}
-        {selectedCount >= 2 && (
+        {selectedCount >= 1 && (
           <div className="flex items-center justify-between rounded-2xl border bg-primary/5 border-primary/20 px-4 py-3">
             <span className="text-sm font-semibold text-primary">~{perSubject} questions per subject</span>
             <span className="text-xs text-muted-foreground">{selectedCount} subjects selected</span>
@@ -230,8 +230,8 @@ export function SubjectPicker({ school, schoolSlug, subjects, subjectCounts, quo
             <><Loader2 className="h-5 w-5 animate-spin" /> Building your paper…</>
           ) : !canStart ? (
             <><Crown className="h-5 w-5" /> Upgrade to Pro</>
-          ) : selectedCount < 2 ? (
-            "Select at least 2 subjects"
+          ) : selectedCount < 1 ? (
+            "Select at least 1 subject"
           ) : (
             <><Zap className="h-5 w-5" /> Start {selectedCount}-Subject Exam</>
           )}
