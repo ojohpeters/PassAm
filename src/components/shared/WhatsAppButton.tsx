@@ -6,9 +6,9 @@ const WA_URL =
   "https://wa.me/2348139479853?text=Hi%2C+I%27m+a+PassAm+student.+I%27m+stuck+on+a+topic+and+need+help+%F0%9F%93%9A"
 
 const MESSAGES = [
-  { title: "Stuck on a topic? 📚", body: "Chat the teacher — he'll demystify it till it fully clicks." },
-  { title: "Got wahala with a subject? 🤔", body: "Drop your question on WhatsApp. Personal, fast, free." },
-  { title: "Don't suffer in silence! 💡", body: "The teacher is right here. Ask that question now." },
+  { title: "Stuck on a topic? 📚", body: "Demystify with Ojochegbe on WhatsApp — he'll make it click." },
+  { title: "Got wahala with a subject? 🤔", body: "Drop your question. Ojochegbe will break it down fast." },
+  { title: "Don't suffer in silence! 💡", body: "Ojochegbe is on WhatsApp. Ask that question now." },
 ]
 
 export function WhatsAppButton() {
@@ -78,7 +78,7 @@ export function WhatsAppButton() {
         rel="noopener noreferrer"
         onMouseEnter={() => !dismissed && setShowTip(true)}
         onMouseLeave={() => !dismissed && setShowTip(false)}
-        aria-label="Chat with the teacher on WhatsApp"
+        aria-label="Demystify with Ojochegbe on WhatsApp"
         className="flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] shadow-lg shadow-[#25D366]/40 transition-all duration-200 hover:scale-110 hover:shadow-xl hover:shadow-[#25D366]/50 active:scale-95"
       >
         <svg viewBox="0 0 24 24" className="h-7 w-7 fill-white">

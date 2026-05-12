@@ -73,9 +73,9 @@ export default function ContactPage() {
               <WhatsAppIcon className="h-6 w-6 text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-bold text-foreground">Chat with the Teacher</p>
+              <p className="font-bold text-foreground">Demystify with Ojochegbe on WhatsApp</p>
               <p className="mt-0.5 text-sm text-muted-foreground">
-                Completely lost on a topic? Message us on WhatsApp — we&apos;ll demystify it until it clicks. 📚
+                Completely lost on a topic? Drop a message — he&apos;ll break it down until it fully clicks. 📚
               </p>
             </div>
             <ExternalLink className="h-4 w-4 shrink-0 text-muted-foreground" />

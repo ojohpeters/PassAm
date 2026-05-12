@@ -317,7 +317,7 @@ export default async function DashboardPage() {
           <div className="min-w-0 flex-1">
             <p className="font-bold text-sm">Got a topic that won&apos;t budge? 💡</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Chat the teacher on WhatsApp — he&apos;ll break it down till it fully clicks. Personal, fast, free.
+              Demystify with Ojochegbe on WhatsApp — personal, fast, free.
             </p>
           </div>
           <ChevronRight className="h-4 w-4 shrink-0 text-[#25D366] transition-transform group-hover:translate-x-0.5" />
