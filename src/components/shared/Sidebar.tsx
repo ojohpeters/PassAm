@@ -1,15 +1,22 @@
 import Link from "next/link"
-import { BookOpen, LogOut } from "lucide-react"
+import Image from "next/image"
+import { LogOut } from "lucide-react"
 import { signOutAction } from "@/actions/auth.actions"
 import { NavLinks } from "./NavLinks"
 
 export function Sidebar() {
   return (
     <aside className="flex h-screen w-60 flex-col border-r bg-background">
-      <div className="flex h-14 items-center gap-2 border-b px-5">
-        <Link href="/dashboard" className="flex items-center gap-2 font-black text-primary text-lg tracking-tight">
-          <BookOpen className="h-5 w-5" />
-          PassAm
+      <div className="flex h-14 items-center border-b px-4">
+        <Link href="/dashboard" className="flex items-center">
+          <Image
+            src="/logo.jpeg"
+            alt="PassAm Prep"
+            width={120}
+            height={40}
+            className="h-9 w-auto object-contain"
+            priority
+          />
         </Link>
       </div>
 
