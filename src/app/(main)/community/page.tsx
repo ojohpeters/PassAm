@@ -2,7 +2,8 @@ import { getCommunityMembers } from "@/actions/community.actions"
 import { getAppUser } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { CommunityClient } from "./CommunityClient"
-import { Users } from "lucide-react"
+import { Users, Lightbulb, ChevronRight } from "lucide-react"
+import Link from "next/link"
 
 export const metadata = { title: "Community" }
 
@@ -40,6 +41,21 @@ export default async function CommunityPage() {
           </p>
         </div>
       </div>
+
+      {/* Brainstorm Sessions link */}
+      <Link
+        href="/community/brainstorm"
+        className="flex items-center gap-4 rounded-2xl border bg-gradient-to-r from-amber-50 to-orange-50 p-4 transition-all hover:shadow-md hover:-translate-y-0.5 dark:from-amber-950/20 dark:to-orange-950/20"
+      >
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 shadow-sm">
+          <Lightbulb className="h-6 w-6 text-white" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="font-black text-base">Brainstorm Sessions</p>
+          <p className="text-sm text-muted-foreground">Daily WhatsApp group leaderboard</p>
+        </div>
+        <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
+      </Link>
 
       <CommunityClient members={members} currentUserId={user.id} />
     </div>
