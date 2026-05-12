@@ -8,16 +8,20 @@ import type { ActionResult, QuestionWithOptions, ExamResult } from "@/types"
 
 const EXAM_QUESTION_COUNT = 40
 const EXAM_TIME_LIMIT_SECS = 3600
+const SECS_PER_QUESTION = 90 // 1.5 min per question
 const FREE_TIER_MONTHLY_LIMIT = 3
 
 export async function startExam(
   schoolId: string,
-  subjectIds: string[]
+  subjectIds: string[],
+  totalQuestions = 10
 ): Promise<ActionResult<{ attemptId: string; questions: QuestionWithOptions[]; timeLimitSecs: number }>> {
   const user = await getAppUser()
   if (!user) return { success: false, error: "UNAUTHORIZED" }
 
   if (!subjectIds.length) return { success: false, error: "NO_SUBJECTS" }
+
+  const clampedTotal = Math.min(50, Math.max(10, totalQuestions))
 
   const admin = createAdminClient()
 
@@ -28,14 +32,14 @@ export async function startExam(
     .single()
   if (!school) return { success: false, error: "NOT_FOUND" }
 
-  // Read optional per-school config (admin-set question counts)
+  // Student-chosen total takes priority; fall back to school config only when student uses default
   const { data: cfg } = await admin
     .from("school_exam_config")
     .select("total_questions, subject_question_counts")
     .eq("school_id", schoolId)
     .single()
 
-  const totalTarget = cfg?.total_questions ?? EXAM_QUESTION_COUNT
+  const totalTarget = clampedTotal
   const subjectCfg: Record<string, number> = (cfg?.subject_question_counts as Record<string, number>) ?? {}
 
   const selected: QuestionWithOptions[] = []
@@ -91,12 +95,13 @@ export async function startExam(
 
   return {
     success: true,
-    data: { attemptId: attempt.id, questions: selected, timeLimitSecs: EXAM_TIME_LIMIT_SECS },
+    data: { attemptId: attempt.id, questions: selected, timeLimitSecs: selected.length * SECS_PER_QUESTION },
   }
 }
 
 export async function startGeneralExam(
-  subjectIds: string[]
+  subjectIds: string[],
+  totalQuestions = 10
 ): Promise<ActionResult<{ attemptId: string; questions: QuestionWithOptions[]; timeLimitSecs: number }>> {
   const user = await getAppUser()
   if (!user) return { success: false, error: "UNAUTHORIZED" }
@@ -113,7 +118,8 @@ export async function startGeneralExam(
 
   if (!generalSchool) return { success: false, error: "GENERAL_NOT_SETUP" }
 
-  const perSubject = Math.floor(EXAM_QUESTION_COUNT / subjectIds.length)
+  const clampedTotal = Math.min(50, Math.max(10, totalQuestions))
+  const perSubject = Math.floor(clampedTotal / subjectIds.length)
   const selected: QuestionWithOptions[] = []
 
   for (const subjectId of subjectIds) {
@@ -161,7 +167,7 @@ export async function startGeneralExam(
 
   return {
     success: true,
-    data: { attemptId: attempt.id, questions: selected, timeLimitSecs: EXAM_TIME_LIMIT_SECS },
+    data: { attemptId: attempt.id, questions: selected, timeLimitSecs: selected.length * SECS_PER_QUESTION },
   }
 }
 

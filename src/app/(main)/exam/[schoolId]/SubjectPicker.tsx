@@ -31,16 +31,18 @@ const SCHOOL_COLORS: Record<string, string> = {
   AFIT:    "from-rose-600 to-rose-900",
 }
 
+const Q_OPTIONS = [10, 20, 30, 40, 50]
+
 export function SubjectPicker({ school, schoolSlug, subjects, subjectCounts }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
 
   const englishSubject = subjects.find((s) => s.name === "English Language")
 
-  // Pre-select English by default, but it's toggleable like any other subject
   const [selected, setSelected] = useState<Set<string>>(
     new Set(englishSubject ? [englishSubject.id] : [])
   )
+  const [totalQuestions, setTotalQuestions] = useState(10)
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -56,15 +58,15 @@ export function SubjectPicker({ school, schoolSlug, subjects, subjectCounts }: P
   }
 
   const selectedCount = selected.size
-  const totalQuestions = 40
   const perSubject = selectedCount > 0 ? Math.floor(totalQuestions / selectedCount) : 0
   const canBegin = selectedCount >= 1
   const gradient = SCHOOL_COLORS[school.abbreviation] ?? "from-slate-600 to-slate-900"
+  const timeMins = Math.round((totalQuestions * 90) / 60)
 
   async function handleStart() {
     if (!canBegin) return
     setLoading(true)
-    const result = await startExam(school.id, Array.from(selected))
+    const result = await startExam(school.id, Array.from(selected), totalQuestions)
     if (!result.success) {
       const msg =
         result.error === "INSUFFICIENT_QUESTIONS" ? "Not enough questions for a subject you selected. Try a different combo." :
@@ -92,7 +94,7 @@ export function SubjectPicker({ school, schoolSlug, subjects, subjectCounts }: P
           <div className="mt-4 flex flex-wrap gap-3">
             {[
               { icon: "📋", label: `${totalQuestions} questions` },
-              { icon: "⏱️", label: "60 minutes" },
+              { icon: "⏱️", label: `${timeMins} minutes` },
               { icon: "📚", label: `${subjects.length} subjects available` },
             ].map(({ icon, label }) => (
               <div key={label} className="flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold backdrop-blur-sm">
@@ -106,13 +108,30 @@ export function SubjectPicker({ school, schoolSlug, subjects, subjectCounts }: P
 
       <div className="mx-auto max-w-lg space-y-6 px-4 pt-6 md:px-6">
 
-        {/* ── Per-subject stat ── */}
-        {selectedCount >= 1 && (
-          <div className="flex items-center justify-between rounded-2xl border bg-primary/5 border-primary/20 px-4 py-3">
-            <span className="text-sm font-semibold text-primary">~{perSubject} questions per subject</span>
-            <span className="text-xs text-muted-foreground">{selectedCount} subject{selectedCount !== 1 ? "s" : ""} selected</span>
+        {/* ── Question count selector ── */}
+        <div className="rounded-2xl border bg-background p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Number of Questions</p>
+            <span className="text-xs text-muted-foreground">{timeMins} min · {perSubject > 0 ? `~${perSubject}/subject` : "select subjects"}</span>
           </div>
-        )}
+          <div className="grid grid-cols-5 gap-2">
+            {Q_OPTIONS.map((n) => (
+              <button
+                key={n}
+                onClick={() => setTotalQuestions(n)}
+                className={cn(
+                  "rounded-xl py-2.5 text-sm font-black transition-all active:scale-[0.96]",
+                  totalQuestions === n
+                    ? "bg-primary text-primary-foreground shadow-sm shadow-primary/30"
+                    : "border bg-muted/30 text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                )}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">Default is 10. Max is 50.</p>
+        </div>
 
         {/* ── Presets ── */}
         {availablePresets.length > 0 && (
@@ -205,7 +224,7 @@ export function SubjectPicker({ school, schoolSlug, subjects, subjectCounts }: P
 
         <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
           {[
-            { icon: Clock, text: "60 min timer" },
+            { icon: Clock, text: `${timeMins} min timer` },
             { icon: LayoutGrid, text: `${totalQuestions} questions` },
           ].map(({ icon: Icon, text }) => (
             <span key={text} className="flex items-center gap-1">

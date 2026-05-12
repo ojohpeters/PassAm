@@ -10,6 +10,8 @@ import Link from "next/link"
 
 type Subject = { id: string; name: string }
 
+const Q_OPTIONS = [10, 20, 30, 40, 50]
+
 export function GeneralSubjectPicker({
   subjects,
   subjectCounts,
@@ -24,6 +26,7 @@ export function GeneralSubjectPicker({
   const [selected, setSelected] = useState<Set<string>>(
     new Set(englishSubject ? [englishSubject.id] : [])
   )
+  const [totalQuestions, setTotalQuestions] = useState(10)
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -34,13 +37,14 @@ export function GeneralSubjectPicker({
   }
 
   const selectedCount = selected.size
-  const perSubject = selectedCount > 0 ? Math.floor(40 / selectedCount) : 0
+  const perSubject = selectedCount > 0 ? Math.floor(totalQuestions / selectedCount) : 0
   const canBegin = selectedCount >= 1
+  const timeMins = Math.round((totalQuestions * 90) / 60)
 
   async function handleStart() {
     if (!canBegin) return
     setLoading(true)
-    const result = await startGeneralExam(Array.from(selected))
+    const result = await startGeneralExam(Array.from(selected), totalQuestions)
     if (!result.success) {
       const msg =
         result.error === "INSUFFICIENT_QUESTIONS"
@@ -71,8 +75,8 @@ export function GeneralSubjectPicker({
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
             {[
-              { icon: "📋", label: "40 questions" },
-              { icon: "⏱️", label: "60 minutes" },
+              { icon: "📋", label: `${totalQuestions} questions` },
+              { icon: "⏱️", label: `${timeMins} minutes` },
               { icon: "🌐", label: "All schools combined" },
             ].map(({ icon, label }) => (
               <div key={label} className="flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold backdrop-blur-sm">
@@ -97,13 +101,30 @@ export function GeneralSubjectPicker({
           </Link>
         </div>
 
-        {/* Per-subject stat */}
-        {selectedCount >= 1 && (
-          <div className="flex items-center justify-between rounded-2xl border bg-primary/5 border-primary/20 px-4 py-3">
-            <span className="text-sm font-semibold text-primary">~{perSubject} questions per subject</span>
-            <span className="text-xs text-muted-foreground">{selectedCount} selected</span>
+        {/* Question count selector */}
+        <div className="rounded-2xl border bg-background p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Number of Questions</p>
+            <span className="text-xs text-muted-foreground">{timeMins} min · {perSubject > 0 ? `~${perSubject}/subject` : "select subjects"}</span>
           </div>
-        )}
+          <div className="grid grid-cols-5 gap-2">
+            {Q_OPTIONS.map((n) => (
+              <button
+                key={n}
+                onClick={() => setTotalQuestions(n)}
+                className={cn(
+                  "rounded-xl py-2.5 text-sm font-black transition-all active:scale-[0.96]",
+                  totalQuestions === n
+                    ? "bg-primary text-primary-foreground shadow-sm shadow-primary/30"
+                    : "border bg-muted/30 text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                )}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">Default is 10. Max is 50.</p>
+        </div>
 
         {/* Subject selector */}
         <div className="space-y-2.5">
