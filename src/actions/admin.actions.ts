@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { getAppUser } from "@/lib/auth"
 import { createQuestionSchema } from "@/lib/validations/question"
 import { revalidatePath } from "next/cache"
+import { subjectSimilarity } from "@/lib/subject-utils"
 import type { ActionResult } from "@/types"
 
 async function requireAdmin() {
@@ -222,21 +223,6 @@ export async function createSchool(name: string, abbreviation: string): Promise<
   return { success: true, data: { id: data.id } }
 }
 
-function normalizeSubjectName(s: string) {
-  return s.toLowerCase().replace(/[^a-z0-9]/g, "")
-}
-
-export function subjectSimilarity(
-  a: string,
-  b: string
-): "exact" | "similar" | "different" {
-  const na = normalizeSubjectName(a)
-  const nb = normalizeSubjectName(b)
-  if (na === nb) return "exact"
-  if (na.includes(nb) || nb.includes(na)) return "similar"
-  return "different"
-}
-
 export async function createSubject(name: string): Promise<ActionResult<{ id: string }>> {
   try {
     await requireAdmin()
@@ -251,9 +237,8 @@ export async function createSubject(name: string): Promise<ActionResult<{ id: st
 
   // Block exact normalized duplicates before hitting the DB
   const { data: existing } = await admin.from("subjects").select("name")
-  const norm = normalizeSubjectName(trimmed)
   const exactMatch = (existing ?? []).find(
-    (s) => normalizeSubjectName(s.name) === norm
+    (s) => subjectSimilarity(trimmed, s.name) === "exact"
   )
   if (exactMatch) {
     return { success: false, error: `DUPLICATE:${exactMatch.name}` }

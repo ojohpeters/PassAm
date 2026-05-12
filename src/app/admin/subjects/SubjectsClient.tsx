@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useTransition, useMemo } from "react"
-import { createSubject, mergeSubjects, subjectSimilarity } from "@/actions/admin.actions"
+import { createSubject, mergeSubjects } from "@/actions/admin.actions"
+import { subjectSimilarity } from "@/lib/subject-utils"
 import { toast } from "sonner"
 import {
   AlertTriangle,
