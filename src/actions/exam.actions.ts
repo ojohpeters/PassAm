@@ -11,6 +11,39 @@ const EXAM_TIME_LIMIT_SECS = 3600
 const SECS_PER_QUESTION = 90 // 1.5 min per question
 const FREE_TIER_MONTHLY_LIMIT = 3
 
+// Returns IDs of questions this student has already seen for a given subject.
+// Scoped to a specific school so cross-school pools don't bleed into each other.
+async function getSeenQuestionIds(
+  admin: ReturnType<typeof createAdminClient>,
+  userId: string,
+  subjectId: string,
+  schoolId?: string
+): Promise<Set<string>> {
+  let q = admin.from("exam_attempts").select("id").eq("user_id", userId)
+  if (schoolId) q = q.eq("school_id", schoolId)
+  const { data: attempts } = await q
+  if (!attempts?.length) return new Set()
+
+  const { data: answers } = await admin
+    .from("attempt_answers")
+    .select("question_id")
+    .in("attempt_id", attempts.map((a) => a.id))
+    .eq("subject_id", subjectId)
+
+  return new Set((answers ?? []).map((a) => a.question_id))
+}
+
+// Shuffles a pool, putting unseen questions first and seen ones last.
+// This guarantees variety across repeated exam attempts.
+function shuffleWithPriority<T extends { id: string }>(
+  pool: T[],
+  seenIds: Set<string>
+): T[] {
+  const unseen = pool.filter((q) => !seenIds.has(q.id)).sort(() => Math.random() - 0.5)
+  const seen   = pool.filter((q) =>  seenIds.has(q.id)).sort(() => Math.random() - 0.5)
+  return [...unseen, ...seen]
+}
+
 export async function startExam(
   schoolId: string,
   subjectIds: string[],
@@ -46,7 +79,6 @@ export async function startExam(
 
   for (let i = 0; i < subjectIds.length; i++) {
     const subjectId = subjectIds[i]
-    // Use admin-configured count, then even split, then take all available
     const idealPerSubject = subjectCfg[subjectId] ?? Math.floor(totalTarget / subjectIds.length)
 
     const { data: pool } = await admin
@@ -63,10 +95,9 @@ export async function startExam(
       return { success: false, error: "INSUFFICIENT_QUESTIONS" }
     }
 
-    // Never error just because we have one fewer than ideal — take what's available
+    const seenIds = await getSeenQuestionIds(admin, user.id, subjectId, schoolId)
     const take = Math.min(idealPerSubject, pool.length)
-    const picked = pool
-      .sort(() => Math.random() - 0.5)
+    const picked = shuffleWithPriority(pool, seenIds)
       .slice(0, take) as unknown as QuestionWithOptions[]
     selected.push(...picked)
   }
@@ -136,9 +167,9 @@ export async function startGeneralExam(
       return { success: false, error: "INSUFFICIENT_QUESTIONS" }
     }
 
+    const seenIds = await getSeenQuestionIds(admin, user.id, subjectId)
     const take = Math.min(perSubject, pool.length)
-    const picked = pool
-      .sort(() => Math.random() - 0.5)
+    const picked = shuffleWithPriority(pool, seenIds)
       .slice(0, take) as unknown as QuestionWithOptions[]
     selected.push(...picked)
   }

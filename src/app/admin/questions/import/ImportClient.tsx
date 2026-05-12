@@ -95,7 +95,7 @@ export function ImportClient({ schools }: { schools: School[] }) {
   const [schoolId, setSchoolId] = useState("")
   const [csvText, setCsvText]   = useState("")
   const [parsed, setParsed]     = useState<{ valid: CsvImportRow[]; invalid: number } | null>(null)
-  const [result, setResult]     = useState<{ created: number; failed: number; newSubjects: string[] } | null>(null)
+  const [result, setResult]     = useState<{ created: number; failed: number; skipped: number; newSubjects: string[] } | null>(null)
   const [error, setError]       = useState("")
   const [expandedRow, setExpandedRow] = useState<number | null>(null)
 
@@ -152,6 +152,9 @@ export function ImportClient({ schools }: { schools: School[] }) {
         </div>
         <div>
           <p className="text-3xl font-black">{result.created.toLocaleString()} imported</p>
+          {result.skipped > 0 && (
+            <p className="mt-1 text-sm text-amber-600 dark:text-amber-400 font-medium">{result.skipped} duplicate{result.skipped !== 1 ? "s" : ""} skipped (already in bank)</p>
+          )}
           {result.failed > 0 && (
             <p className="mt-1 text-sm text-destructive font-medium">{result.failed} rows skipped (bad format)</p>
           )}

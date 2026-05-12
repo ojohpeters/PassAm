@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin"
 import Link from "next/link"
-import { BookOpen, Plus, Hash, Upload } from "lucide-react"
+import { BookOpen, Plus, Hash, Upload, Copy } from "lucide-react"
 import { QuestionsClient } from "./QuestionsClient"
 
 export default async function QuestionsPage() {
@@ -36,6 +36,13 @@ export default async function QuestionsPage() {
           <p className="text-sm text-muted-foreground">{(total ?? 0).toLocaleString()} questions in the bank</p>
         </div>
         <div className="flex items-center gap-2">
+          <Link
+            href="/admin/questions/duplicates"
+            className="flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-bold text-amber-700 transition-all hover:bg-amber-100 active:scale-[0.98] dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-400 dark:hover:bg-amber-950/50"
+          >
+            <Copy className="h-4 w-4" />
+            Duplicates
+          </Link>
           <Link
             href="/admin/questions/import"
             className="flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-bold transition-all hover:bg-muted active:scale-[0.98]"

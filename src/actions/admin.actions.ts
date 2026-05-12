@@ -269,6 +269,10 @@ export async function getSubjects() {
   return subjects.map((s) => ({ ...s, questionCount: countMap[s.id] ?? 0 }))
 }
 
+function normalizeText(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ").trim()
+}
+
 export type CsvImportRow = {
   text: string
   option_a: string
@@ -284,7 +288,7 @@ export type CsvImportRow = {
 export async function bulkImportQuestions(
   schoolId: string,
   rows: CsvImportRow[]
-): Promise<ActionResult<{ created: number; failed: number; newSubjects: string[] }>> {
+): Promise<ActionResult<{ created: number; failed: number; skipped: number; newSubjects: string[] }>> {
   try {
     await requireAdmin()
   } catch {
@@ -318,8 +322,18 @@ export async function bulkImportQuestions(
     if (data) subjectMap.set(name.toLowerCase(), data.id)
   }
 
+  // Build a set of normalized existing question texts for this school to skip duplicates
+  const { data: existingQuestions } = await admin
+    .from("questions")
+    .select("text")
+    .eq("school_id", schoolId)
+  const existingNorm = new Set(
+    (existingQuestions ?? []).map((q) => normalizeText(q.text))
+  )
+
   let created = 0
   let failed = 0
+  let skipped = 0
 
   for (const row of rows) {
     const subjectId = subjectMap.get(row.subject.trim().toLowerCase())
@@ -331,6 +345,11 @@ export async function bulkImportQuestions(
       failed++
       continue
     }
+
+    // Skip if this question already exists in the bank for this school
+    const norm = normalizeText(row.text)
+    if (existingNorm.has(norm)) { skipped++; continue }
+    existingNorm.add(norm) // prevent duplicates within the same batch too
 
     const yearNum = row.year ? parseInt(row.year, 10) : null
     const year = yearNum && yearNum >= 1990 && yearNum <= new Date().getFullYear() ? yearNum : null
@@ -359,7 +378,50 @@ export async function bulkImportQuestions(
     created++
   }
 
-  return { success: true, data: { created, failed, newSubjects: newSubjectNames } }
+  return { success: true, data: { created, failed, skipped, newSubjects: newSubjectNames } }
+}
+
+// ── Duplicate detection ───────────────────────────────────────────────────────
+
+export type DuplicateGroup = {
+  normalizedText: string
+  questions: Array<{
+    id: string
+    text: string
+    year: number | null
+    created_at: string
+    school: { name: string; abbreviation: string } | null
+    subject: { name: string } | null
+  }>
+}
+
+export async function findDuplicateQuestions(): Promise<DuplicateGroup[]> {
+  try {
+    await requireAdmin()
+  } catch {
+    return []
+  }
+
+  const admin = createAdminClient()
+  const { data: questions } = await admin
+    .from("questions")
+    .select("id, text, year, created_at, school:schools(name, abbreviation), subject:subjects(name)")
+    .order("created_at", { ascending: true })
+
+  if (!questions) return []
+
+  const groups = new Map<string, DuplicateGroup["questions"]>()
+  for (const q of questions) {
+    const key = normalizeText(q.text)
+    const existing = groups.get(key) ?? []
+    existing.push(q as unknown as DuplicateGroup["questions"][0])
+    groups.set(key, existing)
+  }
+
+  return [...groups.entries()]
+    .filter(([, qs]) => qs.length > 1)
+    .map(([normalizedText, questions]) => ({ normalizedText, questions }))
+    .sort((a, b) => b.questions.length - a.questions.length)
 }
 
 // ── Student management ────────────────────────────────────────────────────────
