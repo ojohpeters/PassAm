@@ -57,7 +57,7 @@ export default async function BrainstormPage() {
           </div>
         </div>
         <p className="relative mt-3 text-sm leading-relaxed text-white/80 max-w-lg">
-          Every day, students compete to answer questions first in the PassAm WhatsApp group.
+          Every day, students compete to answer questions first in the PrepIQ WhatsApp group.
           Log attendants track who&apos;s active and how many questions each student answered first.
         </p>
         {!canLog && (

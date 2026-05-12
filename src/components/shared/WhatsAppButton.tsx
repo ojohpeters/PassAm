@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 
 const WA_URL =
-  "https://wa.me/2348139479853?text=Hi%2C+I%27m+a+PassAm+student.+I%27m+stuck+on+a+topic+and+need+help+%F0%9F%93%9A"
+  "https://wa.me/2348139479853?text=Hi%2C+I%27m+a+PrepIQ+student.+I%27m+stuck+on+a+topic+and+need+help+%F0%9F%93%9A"
 
 const MESSAGES = [
   { title: "Stuck on a topic? 📚", body: "Demystify with Ojochegbe on WhatsApp — he'll make it click." },

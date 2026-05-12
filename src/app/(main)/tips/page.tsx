@@ -23,13 +23,13 @@ export default async function TipsPage() {
         <div className="mx-auto max-w-2xl">
           <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-green-400/30 bg-green-400/10 px-4 py-1.5 text-xs font-bold text-green-300">
             <Lightbulb className="h-3.5 w-3.5" />
-            From PassAm — active until late September
+            From PrepIQ — active until late September
           </div>
           <h1 className="text-2xl font-black tracking-tight md:text-3xl">
             Study Tips & Exam Tricks 🎯
           </h1>
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/70">
-            PassAm is dedicated to sharing curated study tips, subject-based tricks,
+            PrepIQ is dedicated to sharing curated study tips, subject-based tricks,
             and exam strategies to help you walk into that hall with confidence.
             New content drops regularly — come back often!
           </p>
@@ -61,7 +61,7 @@ export default async function TipsPage() {
             <span className="text-5xl mb-4">🔥</span>
             <h2 className="text-xl font-black">Tips dropping soon!</h2>
             <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-              PassAm is preparing study tips, subject tricks and exam tactics for you.
+              PrepIQ is preparing study tips, subject tricks and exam tactics for you.
               Check back very soon — this page is about to be loaded! 💪
             </p>
           </div>

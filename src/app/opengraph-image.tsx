@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og"
 
 export const runtime = "edge"
-export const alt = "PassAm — Pass Your POST-UTME"
+export const alt = "PrepIQ — Pass Your POST-UTME"
 export const size = { width: 1200, height: 630 }
 export const contentType = "image/png"
 
@@ -83,7 +83,7 @@ export default function OGImage() {
                 letterSpacing: "-0.5px",
               }}
             >
-              PA
+              PQ
             </div>
             <span
               style={{
@@ -94,7 +94,7 @@ export default function OGImage() {
                 letterSpacing: "-1px",
               }}
             >
-              PassAm
+              PrepIQ
             </span>
             <div
               style={{

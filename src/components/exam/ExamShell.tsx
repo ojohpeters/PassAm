@@ -42,7 +42,7 @@ export function ExamShell({ attemptId, questions, timeLimitSecs }: Props) {
   const remainingRef    = useRef(ANTICHEAT_COUNTDOWN)
   const violationRef    = useRef(0)
   const isSubmittingRef = useRef(false)
-  const originalTitle   = useRef(typeof document !== "undefined" ? document.title : "PassAm")
+  const originalTitle   = useRef(typeof document !== "undefined" ? document.title : "PrepIQ")
   const doSubmitRef     = useRef<(timedOut?: boolean) => Promise<void>>()
 
   useEffect(() => { isSubmittingRef.current = isSubmitting }, [isSubmitting])
@@ -176,12 +176,12 @@ export function ExamShell({ attemptId, questions, timeLimitSecs }: Props) {
           const r = remainingRef.current
 
           // Update document title so it's visible in the tab switcher
-          document.title = `⚠️ Return in ${r}s — PassAm Exam`
+          document.title = `⚠️ Return in ${r}s — PrepIQ Exam`
           setTabCountdown(r)
 
           if (r <= 0) {
             clearAntiCheatTimer()
-            document.title = "Submitting… — PassAm"
+            document.title = "Submitting… — PrepIQ"
             doSubmitRef.current?.()
           }
         }, 1000)

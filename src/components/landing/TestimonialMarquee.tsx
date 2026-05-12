@@ -6,7 +6,7 @@ const TESTIMONIALS = [
   { quote: "I went from 45% to 82% in three weeks. UNILAG I'm coming 🔥", name: "Chukwuemeka A.", school: "Targeting UNILAG" },
   { quote: "The daily quiz streak is genuinely addictive. Missed one day and I was so pained 😭", name: "Adaeze O.", school: "Targeting UI" },
   { quote: "Finally a prep app with actual OAU questions. The explanations are 10/10 fr", name: "Biodun F.", school: "Targeting OAU" },
-  { quote: "I used to think CBT was hard. PassAm made me realise I just wasn't practising right", name: "Emeka T.", school: "Targeting UNIBEN" },
+  { quote: "I used to think CBT was hard. PrepIQ made me realise I just wasn't practising right", name: "Emeka T.", school: "Targeting UNIBEN" },
   { quote: "My score jumped 30 points. My parents think I just read harder. Lmao 😂", name: "Fatima M.", school: "Targeting UI" },
   { quote: "The leaderboard competition with my friend pushed me like nothing else did", name: "Segun A.", school: "Targeting UNILAG" },
   { quote: "No dulling — the questions are exactly what showed up in my actual exam", name: "Amaka E.", school: "Targeting UNIPORT" },

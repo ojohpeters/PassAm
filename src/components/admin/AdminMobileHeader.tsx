@@ -16,7 +16,7 @@ export function AdminMobileHeader() {
             <BookMarked className="h-4 w-4 text-primary" />
           </div>
           <div className="leading-none">
-            <p className="text-sm font-black text-primary">PassAm</p>
+            <p className="text-sm font-black text-primary">PrepIQ</p>
             <p className="text-[10px] text-muted-foreground font-semibold tracking-wide uppercase">Admin</p>
           </div>
         </div>

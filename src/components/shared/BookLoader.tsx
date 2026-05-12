@@ -8,7 +8,7 @@ export function BookLoader() {
         <div className="book-spine" />
       </div>
       <p className="text-sm text-muted-foreground tracking-wide">
-        <span className="font-black text-primary">PassAm</span>
+        <span className="font-black text-primary">PrepIQ</span>
         <span className="loading-dot">.</span>
         <span className="loading-dot">.</span>
         <span className="loading-dot">.</span>

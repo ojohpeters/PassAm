@@ -2,7 +2,7 @@ import { getAppUser } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { BookOpen, Zap, BarChart2, Trophy, Calendar, Shield, ArrowRight, ChevronDown, Globe } from "lucide-react"
-import Image from "next/image"
+import { PrepIQWordmark } from "@/components/shared/PrepIQLogo"
 import { HeroAnimation } from "@/components/landing/HeroAnimation"
 import { AnimatedCounter } from "@/components/landing/AnimatedCounter"
 import { ScrollReveal } from "@/components/landing/ScrollReveal"
@@ -93,14 +93,7 @@ export default async function LandingPage() {
       <header className="sticky top-0 z-50 border-b border-white/10 bg-[#050d1f]/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2.5 sm:px-6">
           <Link href="/" className="flex items-center">
-            <Image
-              src="/logo.jpeg"
-              alt="PassAm Prep"
-              width={120}
-              height={40}
-              className="h-10 w-auto object-contain"
-              priority
-            />
+            <PrepIQWordmark size={28} />
           </Link>
           <div className="flex items-center gap-1 sm:gap-2">
             <Link
@@ -347,7 +340,7 @@ export default async function LandingPage() {
               </ul>
 
               <a
-                href="https://wa.me/2348139479853?text=Hi%2C+I%27m+a+PassAm+student.+I%27m+stuck+on+a+topic+and+need+help+%F0%9F%93%9A"
+                href="https://wa.me/2348139479853?text=Hi%2C+I%27m+a+PrepIQ+student.+I%27m+stuck+on+a+topic+and+need+help+%F0%9F%93%9A"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-8 inline-flex items-center gap-3 rounded-2xl bg-[#25D366] px-7 py-4 text-sm font-black text-white shadow-lg shadow-[#25D366]/30 transition-all hover:bg-[#1ebe5d] hover:shadow-xl hover:shadow-[#25D366]/40 active:scale-[0.98]"
@@ -512,9 +505,9 @@ export default async function LandingPage() {
       <footer className="border-t bg-background">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-5 py-7 text-xs text-muted-foreground md:flex-row">
           <div className="flex items-center">
-            <Image src="/logo.jpeg" alt="PassAm Prep" width={90} height={30} className="h-8 w-auto object-contain" />
+            <PrepIQWordmark size={24} />
           </div>
-          <p>© {new Date().getFullYear()} PassAm. Built for Nigerian students. 🇳🇬</p>
+          <p>© {new Date().getFullYear()} PrepIQ. Built for Nigerian students. 🇳🇬</p>
           <div className="flex gap-6">
             <Link href="/about" className="transition-colors hover:text-foreground">About</Link>
             <Link href="/login" className="transition-colors hover:text-foreground">Sign in</Link>

@@ -1,5 +1,6 @@
 import Link from "next/link"
-import { BookOpen, ArrowLeft, Zap, Trophy, BarChart2, Calendar } from "lucide-react"
+import { ArrowLeft, Zap, Trophy, BarChart2, Calendar } from "lucide-react"
+import { PrepIQLogo } from "@/components/shared/PrepIQLogo"
 
 const FEATURES = [
   { icon: Zap,       text: "Timed CBT mock exams for your exact school" },
@@ -24,8 +25,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         {/* Mobile compact header */}
         <div className="relative flex items-center justify-between p-5 lg:hidden">
           <Link href="/" className="flex items-center gap-2 font-black text-xl tracking-tight">
-            <BookOpen className="h-5 w-5" />
-            PassAm
+            <PrepIQLogo size={22} />
+            PrepIQ
           </Link>
           <Link
             href="/"
@@ -50,8 +51,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <div className="relative hidden lg:flex lg:flex-col lg:justify-between lg:h-full">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5 font-black text-2xl tracking-tight">
-            <BookOpen className="h-7 w-7" />
-            PassAm
+            <PrepIQLogo size={30} />
+            PrepIQ
           </Link>
 
           {/* Copy */}

@@ -15,12 +15,12 @@ export default function BannedPage() {
         <div className="space-y-2">
           <h1 className="text-2xl font-black tracking-tight">Account Suspended</h1>
           <p className="text-muted-foreground">
-            Your PassAm account has been suspended by an administrator. If you think this is a mistake, reach out immediately.
+            Your PrepIQ account has been suspended by an administrator. If you think this is a mistake, reach out immediately.
           </p>
         </div>
 
         <a
-          href="https://wa.me/2348139479853?text=Hi%2C+my+PassAm+account+was+suspended+and+I+think+it%27s+a+mistake.+My+account%3A+"
+          href="https://wa.me/2348139479853?text=Hi%2C+my+PrepIQ+account+was+suspended+and+I+think+it%27s+a+mistake.+My+account%3A+"
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center justify-center gap-2 rounded-xl bg-[#25D366] px-6 py-3 text-sm font-bold text-white shadow transition-all hover:bg-[#1ebe5d] active:scale-[0.98]"
@@ -47,7 +47,7 @@ export default function BannedPage() {
         </form>
 
         <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
-          <BookOpen className="h-3 w-3" /> PassAm — Pass Your POST-UTME
+          <BookOpen className="h-3 w-3" /> PrepIQ — Pass Your POST-UTME
         </p>
       </div>
     </div>

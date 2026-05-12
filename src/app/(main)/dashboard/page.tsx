@@ -309,7 +309,7 @@ export default async function DashboardPage() {
           <div className="flex items-center justify-between">
             <h2 className="font-bold text-sm uppercase tracking-wider text-muted-foreground flex items-center gap-2">
               <Lightbulb className="h-4 w-4 text-amber-500" />
-              Latest Tips from PassAm
+              Latest Tips from PrepIQ
             </h2>
             <Link href="/tips" className="flex items-center gap-0.5 text-xs font-semibold text-primary">
               See all <ChevronRight className="h-3 w-3" />
@@ -345,7 +345,7 @@ export default async function DashboardPage() {
       {/* ── WhatsApp help card ── */}
       <div className="dash-in" style={{ animationDelay: "380ms" }}>
         <a
-          href="https://wa.me/2348139479853?text=Hi%2C+I%27m+a+PassAm+student.+A+topic+is+stressing+me+and+I+need+it+broken+down+%F0%9F%93%9A"
+          href="https://wa.me/2348139479853?text=Hi%2C+I%27m+a+PrepIQ+student.+A+topic+is+stressing+me+and+I+need+it+broken+down+%F0%9F%93%9A"
           target="_blank"
           rel="noopener noreferrer"
           className="group flex items-center gap-4 rounded-2xl border border-[#25D366]/30 bg-[#25D366]/5 p-4 transition-all duration-200 hover:border-[#25D366]/60 hover:bg-[#25D366]/10 active:scale-[0.99]"
@@ -358,7 +358,7 @@ export default async function DashboardPage() {
           <div className="min-w-0 flex-1">
             <p className="font-bold text-sm">Got a topic that won&apos;t budge? 💡</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Demystify with PassAm on WhatsApp — personal, fast, free.
+              Demystify with PrepIQ on WhatsApp — personal, fast, free.
             </p>
           </div>
           <ChevronRight className="h-4 w-4 shrink-0 text-[#25D366] transition-transform group-hover:translate-x-0.5" />

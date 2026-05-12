@@ -30,7 +30,7 @@ export function AdminSidebar({ onClose }: { onClose?: () => void }) {
           <BookMarked className="h-5 w-5 text-primary" />
         </div>
         <div className="leading-none">
-          <p className="font-black text-primary tracking-tight">PassAm</p>
+          <p className="font-black text-primary tracking-tight">PrepIQ</p>
           <p className="text-[11px] text-muted-foreground font-semibold tracking-wide uppercase">Admin Panel</p>
         </div>
       </div>

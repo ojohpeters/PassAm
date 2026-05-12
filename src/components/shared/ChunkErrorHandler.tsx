@@ -4,7 +4,7 @@ import { useEffect } from "react"
 
 export function ChunkErrorHandler() {
   useEffect(() => {
-    const RELOAD_KEY = "__passam_chunk_reload"
+    const RELOAD_KEY = "__prepiq_chunk_reload"
 
     const handleError = (event: ErrorEvent) => {
       const target = event.target

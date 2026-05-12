@@ -25,7 +25,7 @@ export default async function CommunityPage() {
             <Users className="h-7 w-7" />
           </div>
           <div>
-            <h1 className="text-2xl font-black tracking-tight">PassAm Community</h1>
+            <h1 className="text-2xl font-black tracking-tight">PrepIQ Community</h1>
             <p className="mt-0.5 text-sm text-white/75">
               {members.length} student{members.length !== 1 ? "s" : ""} sharing their contact
             </p>

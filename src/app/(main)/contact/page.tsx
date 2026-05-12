@@ -1,7 +1,7 @@
-import Image from "next/image"
 import { ExternalLink } from "lucide-react"
+import { PrepIQLogo } from "@/components/shared/PrepIQLogo"
 
-const WA_TEACHER = "https://wa.me/2348139479853?text=Hi%2C+I%27m+a+PassAm+student.+I%27m+stuck+on+a+topic+and+need+help+%F0%9F%93%9A"
+const WA_TEACHER = "https://wa.me/2348139479853?text=Hi%2C+I%27m+a+PrepIQ+student.+I%27m+stuck+on+a+topic+and+need+help+%F0%9F%93%9A"
 const WA_CHANNEL = "https://whatsapp.com/channel/0029Vb8eIXp4o7qUMP34jz3j"
 const WA_GROUP   = "https://chat.whatsapp.com/JGMcTNHkrMs9Lq87ebRvHY"
 
@@ -20,17 +20,11 @@ export default function ContactPage() {
       {/* ── Hero ── */}
       <div className="bg-gradient-to-br from-[#1a3a7c] to-[#0d2254] px-5 py-12 text-white text-center">
         <div className="mx-auto max-w-lg">
-          <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-3xl bg-white/10 ring-2 ring-white/20 backdrop-blur-sm overflow-hidden">
-            <Image
-              src="/logo.jpeg"
-              alt="PassAm Prep"
-              width={96}
-              height={96}
-              className="h-full w-full object-contain"
-            />
+          <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-3xl bg-white/10 ring-2 ring-white/20 backdrop-blur-sm">
+            <PrepIQLogo size={64} />
           </div>
-          <h1 className="text-3xl font-black tracking-tight">PassAm Prep</h1>
-          <p className="mt-2 text-base font-semibold text-white/80 italic">Practice smart. PassAm.</p>
+          <h1 className="text-3xl font-black tracking-tight">PrepIQ</h1>
+          <p className="mt-2 text-base font-semibold text-white/80 italic">Practise like it&apos;s real. Pass like it&apos;s easy.</p>
           <p className="mt-4 text-sm leading-relaxed text-white/70 max-w-sm mx-auto">
             Nigeria&apos;s smartest POST-UTME practice platform — helping students crush their
             admission exams one subject at a time.
@@ -42,10 +36,10 @@ export default function ContactPage() {
 
         {/* ── About ── */}
         <section className="space-y-4">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">About PassAm</h2>
+          <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">About PrepIQ</h2>
           <div className="rounded-2xl border bg-background p-5 space-y-3 text-sm leading-relaxed text-muted-foreground">
             <p>
-              <span className="font-bold text-foreground">PassAm Prep</span> was built for Nigerian students
+              <span className="font-bold text-foreground">PrepIQ Prep</span> was built for Nigerian students
               preparing for POST-UTME exams at top universities — UNILAG, OAU, UI, UNIBEN, UNIPORT, and more.
             </p>
             <p>
@@ -117,7 +111,7 @@ export default function ContactPage() {
                 <WhatsAppIcon className="h-5 w-5 text-[#25D366]" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm">PassAm Student Group</p>
+                <p className="font-semibold text-sm">PrepIQ Student Group</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   Connect with fellow students, share resources, and prep together
                 </p>
@@ -151,7 +145,7 @@ export default function ContactPage() {
 
         {/* ── Footer note ── */}
         <p className="pb-4 text-center text-xs text-muted-foreground">
-          Built with ❤️ for Nigerian students · &copy; {new Date().getFullYear()} PassAm Prep
+          Built with ❤️ for Nigerian students · &copy; {new Date().getFullYear()} PrepIQ Prep
         </p>
 
       </div>

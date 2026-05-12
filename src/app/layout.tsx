@@ -13,8 +13,8 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://passam.vercel.app"
 export const metadata: Metadata = {
   metadataBase: new URL(APP_URL),
   title: {
-    default: "PassAm — Pass Your POST-UTME",
-    template: "%s | PassAm",
+    default: "PrepIQ — Practise like it's real. Pass like it's easy.",
+    template: "%s | PrepIQ",
   },
   description:
     "School-specific CBT practice for Nigerian POST-UTME. 1,000+ past questions, timed mock exams, daily quiz & leaderboard. Free forever.",
@@ -33,13 +33,13 @@ export const metadata: Metadata = {
     "mock exam",
     "past questions",
   ],
-  authors: [{ name: "PassAm" }],
-  creator: "PassAm",
+  authors: [{ name: "PrepIQ" }],
+  creator: "PrepIQ",
   openGraph: {
     type: "website",
     url: APP_URL,
-    siteName: "PassAm",
-    title: "PassAm — Pass Your POST-UTME",
+    siteName: "PrepIQ",
+    title: "PrepIQ — Pass Your POST-UTME",
     description:
       "School-specific CBT mock exams for Nigerian students. 1,000+ past questions, daily quiz, weekly leaderboard. Free forever 🇳🇬",
     images: [
@@ -47,17 +47,17 @@ export const metadata: Metadata = {
         url: "/opengraph-image",
         width: 1200,
         height: 630,
-        alt: "PassAm — Pass Your POST-UTME",
+        alt: "PrepIQ — Pass Your POST-UTME",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "PassAm — Pass Your POST-UTME",
+    title: "PrepIQ — Pass Your POST-UTME",
     description:
       "School-specific CBT practice for Nigerian students. Free mock exams, daily quiz & leaderboard 🇳🇬",
     images: ["/opengraph-image"],
-    creator: "@passam_ng",
+    creator: "@prepiq_ng",
   },
   robots: {
     index: true,
