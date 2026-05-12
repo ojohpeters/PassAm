@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { getAppUser } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { ExamConfigForm } from "./ExamConfigForm"
+import { NewSchoolForm } from "./NewSchoolForm"
 import { Settings2 } from "lucide-react"
 
 export const metadata = { title: "Exam Config — Admin" }
@@ -47,6 +48,8 @@ export default async function AdminSchoolsPage() {
       <div className="rounded-2xl border bg-amber-50/50 border-amber-200/60 px-4 py-3 text-xs text-amber-800 dark:bg-amber-950/30 dark:border-amber-800/40 dark:text-amber-300">
         <strong>Note:</strong> If no config is set for a school, the exam defaults to 40 total questions split evenly across selected subjects. Per-subject overrides take precedence over even splits.
       </div>
+
+      <NewSchoolForm />
 
       <div className="space-y-3">
         {(schools ?? []).map((school) => {

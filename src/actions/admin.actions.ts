@@ -199,6 +199,28 @@ export async function deleteQuestions(ids: string[]): Promise<ActionResult<{ del
   return { success: true, data: { deleted: ids.length } }
 }
 
+export async function createSchool(name: string, abbreviation: string): Promise<ActionResult<{ id: string }>> {
+  try {
+    await requireAdmin()
+  } catch {
+    return { success: false, error: "UNAUTHORIZED" }
+  }
+
+  const trimmedName = name.trim()
+  const trimmedAbbr = abbreviation.trim().toUpperCase()
+  if (!trimmedName || !trimmedAbbr) return { success: false, error: "Name and abbreviation are required" }
+
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from("schools")
+    .insert({ name: trimmedName, abbreviation: trimmedAbbr })
+    .select("id")
+    .single()
+
+  if (error || !data) return { success: false, error: error?.message ?? "INTERNAL" }
+  return { success: true, data: { id: data.id } }
+}
+
 export async function createSubject(name: string): Promise<ActionResult<{ id: string }>> {
   try {
     await requireAdmin()
