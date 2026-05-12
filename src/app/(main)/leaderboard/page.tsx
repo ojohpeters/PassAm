@@ -1,4 +1,4 @@
-import { getLeaderboard } from "@/actions/leaderboard.actions"
+import { getLeaderboard, getDailyLeaderboard } from "@/actions/leaderboard.actions"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getAppUser } from "@/lib/auth"
 import { redirect } from "next/navigation"
@@ -8,10 +8,12 @@ import Link from "next/link"
 export default async function LeaderboardPage({
   searchParams,
 }: {
-  searchParams: { school?: string }
+  searchParams: { school?: string; tab?: string }
 }) {
   const user = await getAppUser()
   if (!user) redirect("/login")
+
+  const tab = searchParams.tab === "daily" ? "daily" : "weekly"
 
   const admin = createAdminClient()
   const { data: schools } = await admin
@@ -19,16 +21,54 @@ export default async function LeaderboardPage({
     .select("id, name, abbreviation")
     .order("name")
 
-  const board = await getLeaderboard(searchParams.school)
+  const [weeklyBoard, dailyBoard] = await Promise.all([
+    getLeaderboard(searchParams.school),
+    getDailyLeaderboard(),
+  ])
+
+  const board = tab === "daily" ? dailyBoard : weeklyBoard
   const MEDALS = ["🥇", "🥈", "🥉"]
+
+  const todayLabel = new Date().toLocaleDateString("en-NG", { weekday: "long", month: "short", day: "numeric" })
 
   return (
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Leaderboard</h1>
-          <p className="text-sm text-muted-foreground">Weekly rankings · resets every Monday</p>
+          <p className="text-sm text-muted-foreground">
+            {tab === "daily"
+              ? `Daily quiz rankings · ${todayLabel}`
+              : "Weekly rankings · resets every Monday"}
+          </p>
         </div>
+      </div>
+
+      {/* Tab switcher */}
+      <div className="flex items-center gap-1 rounded-xl border bg-muted/40 p-1 w-fit">
+        {(["weekly", "daily"] as const).map((t) => {
+          const params = new URLSearchParams()
+          if (searchParams.school) params.set("school", searchParams.school)
+          if (t !== "weekly") params.set("tab", t)
+          return (
+            <Link
+              key={t}
+              href={`/leaderboard${params.toString() ? `?${params}` : ""}`}
+              className={cn(
+                "rounded-lg px-4 py-1.5 text-sm font-semibold capitalize transition-all",
+                tab === t
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {t === "weekly" ? "Weekly" : "Daily Quiz"}
+            </Link>
+          )
+        })}
+      </div>
+
+      {/* School filter (weekly only) */}
+      {tab === "weekly" && (
         <div className="flex flex-wrap gap-2">
           <Link
             href="/leaderboard"
@@ -54,10 +94,10 @@ export default async function LeaderboardPage({
             </Link>
           ))}
         </div>
-      </div>
+      )}
 
       {board.success && board.data.length > 0 ? (
-        <div className="rounded-xl border">
+        <div className="rounded-xl border overflow-hidden">
           {board.data.map((entry) => (
             <div
               key={entry.userId}
@@ -75,16 +115,22 @@ export default async function LeaderboardPage({
                   <span className="ml-2 text-xs text-muted-foreground">(you)</span>
                 )}
               </span>
-              <span className="font-bold">{entry.totalScore} pts</span>
-              <span className="text-xs text-muted-foreground">
-                {entry.attempts} exam{entry.attempts !== 1 ? "s" : ""}
-              </span>
+              <div className="text-right">
+                <span className="font-bold block">{entry.totalScore} pts</span>
+                {tab === "weekly" && (
+                  <span className="text-xs text-muted-foreground">
+                    {entry.attempts} exam{entry.attempts !== 1 ? "s" : ""}
+                  </span>
+                )}
+              </div>
             </div>
           ))}
         </div>
       ) : (
         <p className="py-12 text-center text-muted-foreground">
-          No attempts this week yet. Be the first on the board!
+          {tab === "daily"
+            ? "No daily quiz completions yet today. Be the first on the board!"
+            : "No attempts this week yet. Be the first on the board!"}
         </p>
       )}
     </div>

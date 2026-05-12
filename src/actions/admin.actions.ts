@@ -184,6 +184,69 @@ export async function deleteQuestion(id: string): Promise<ActionResult<void>> {
   return { success: true, data: undefined }
 }
 
+export async function deleteQuestions(ids: string[]): Promise<ActionResult<{ deleted: number }>> {
+  try {
+    await requireAdmin()
+  } catch {
+    return { success: false, error: "UNAUTHORIZED" }
+  }
+
+  if (!ids.length) return { success: false, error: "No IDs provided" }
+
+  const admin = createAdminClient()
+  const { error } = await admin.from("questions").delete().in("id", ids)
+  if (error) return { success: false, error: "INTERNAL" }
+  return { success: true, data: { deleted: ids.length } }
+}
+
+export async function createSubject(name: string): Promise<ActionResult<{ id: string }>> {
+  try {
+    await requireAdmin()
+  } catch {
+    return { success: false, error: "UNAUTHORIZED" }
+  }
+
+  const trimmed = name.trim()
+  if (!trimmed) return { success: false, error: "Name required" }
+
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from("subjects")
+    .insert({ name: trimmed })
+    .select("id")
+    .single()
+
+  if (error || !data) return { success: false, error: error?.message ?? "INTERNAL" }
+  return { success: true, data: { id: data.id } }
+}
+
+export async function getSubjects() {
+  try {
+    await requireAdmin()
+  } catch {
+    return null
+  }
+
+  const admin = createAdminClient()
+  const { data: subjects } = await admin
+    .from("subjects")
+    .select("id, name")
+    .order("name")
+
+  if (!subjects) return []
+
+  const { data: counts } = await admin
+    .from("questions")
+    .select("subject_id")
+
+  const countMap: Record<string, number> = {}
+  for (const q of counts ?? []) {
+    countMap[q.subject_id] = (countMap[q.subject_id] ?? 0) + 1
+  }
+
+  return subjects.map((s) => ({ ...s, questionCount: countMap[s.id] ?? 0 }))
+}
+
 // ── Student management ────────────────────────────────────────────────────────
 
 export async function getStudents(page = 1, search = "") {

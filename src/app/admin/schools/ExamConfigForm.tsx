@@ -122,7 +122,6 @@ export function ExamConfigForm({
                     }
                     placeholder={`Auto (~${Math.floor(total / subjects.length)})`}
                     min={1}
-                    max={s.questionCount}
                     className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold outline-none ring-primary/40 transition-all focus:border-primary focus:ring-2 placeholder:font-normal placeholder:text-muted-foreground"
                   />
                 </div>

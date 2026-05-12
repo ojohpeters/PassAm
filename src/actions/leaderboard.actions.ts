@@ -32,6 +32,40 @@ export async function getLeaderboard(
   }
 }
 
+export async function getDailyLeaderboard(
+  date?: string,
+  limit = 50
+): Promise<ActionResult<LeaderboardEntry[]>> {
+  const user = await getAppUser()
+  if (!user) return { success: false, error: "UNAUTHORIZED" }
+
+  const targetDate = date ?? new Date().toISOString().slice(0, 10)
+  const admin = createAdminClient()
+
+  const { data, error } = await admin
+    .from("daily_quizzes")
+    .select("user_id, score, completed_at, profiles(name)")
+    .eq("date", targetDate)
+    .not("completed_at", "is", null)
+    .order("score", { ascending: false })
+    .order("completed_at", { ascending: true })
+    .limit(limit)
+
+  if (error) return { success: false, error: "INTERNAL" }
+
+  return {
+    success: true,
+    data: (data ?? []).map((r: any, i: number) => ({
+      rank: i + 1,
+      userId: r.user_id,
+      name: r.profiles?.name ?? "Unknown",
+      totalScore: Number(r.score),
+      attempts: 1,
+      isCurrentUser: r.user_id === user.id,
+    })),
+  }
+}
+
 export async function getStudentRank(schoolId?: string) {
   const user = await getAppUser()
   if (!user) return null
