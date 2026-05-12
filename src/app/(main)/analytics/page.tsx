@@ -55,9 +55,9 @@ export default async function AnalyticsPage() {
         <h2 className="font-semibold">Subject Accuracy</h2>
         {!isPro ? (
           <div className="rounded-xl border border-dashed p-8 text-center">
-            <p className="font-semibold">Coming soon for Pro users</p>
+            <p className="font-semibold">Coming soon</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              See your accuracy per subject and identify your weak areas.
+              Subject accuracy and weak area insights are on the way.
             </p>
           </div>
         ) : (
