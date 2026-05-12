@@ -11,10 +11,13 @@ const EXAM_TIME_LIMIT_SECS = 3600
 const FREE_TIER_MONTHLY_LIMIT = 3
 
 export async function startExam(
-  schoolId: string
+  schoolId: string,
+  subjectIds: string[]
 ): Promise<ActionResult<{ attemptId: string; questions: QuestionWithOptions[]; timeLimitSecs: number }>> {
   const user = await getAppUser()
   if (!user) return { success: false, error: "UNAUTHORIZED" }
+
+  if (!subjectIds.length) return { success: false, error: "NO_SUBJECTS" }
 
   const admin = createAdminClient()
 
@@ -41,29 +44,44 @@ export async function startExam(
     .single()
   if (!school) return { success: false, error: "NOT_FOUND" }
 
-  const { data: pool } = await admin
-    .from("questions")
-    .select(`
-      id, text, image_url, explanation, year, school_id, subject_id,
-      options(id, label, text),
-      subject:subjects(name)
-    `)
-    .eq("school_id", schoolId)
+  // Distribute 40 questions evenly across selected subjects
+  const perSubject = Math.floor(EXAM_QUESTION_COUNT / subjectIds.length)
+  // Any remainder goes to the first subject (English)
+  const remainder = EXAM_QUESTION_COUNT - perSubject * subjectIds.length
 
-  if (!pool || pool.length < EXAM_QUESTION_COUNT) {
-    return { success: false, error: "INTERNAL" }
+  const selected: QuestionWithOptions[] = []
+
+  for (let i = 0; i < subjectIds.length; i++) {
+    const take = perSubject + (i === 0 ? remainder : 0)
+    const { data: pool } = await admin
+      .from("questions")
+      .select(`
+        id, text, image_url, explanation, year, school_id, subject_id,
+        options(id, label, text),
+        subject:subjects(name)
+      `)
+      .eq("school_id", schoolId)
+      .eq("subject_id", subjectIds[i])
+
+    if (!pool || pool.length < take) {
+      return { success: false, error: "INSUFFICIENT_QUESTIONS" }
+    }
+
+    const picked = pool
+      .sort(() => Math.random() - 0.5)
+      .slice(0, take) as unknown as QuestionWithOptions[]
+    selected.push(...picked)
   }
 
-  const selected = pool
-    .sort(() => Math.random() - 0.5)
-    .slice(0, EXAM_QUESTION_COUNT) as unknown as QuestionWithOptions[]
+  // Shuffle so subjects aren't grouped
+  selected.sort(() => Math.random() - 0.5)
 
   const { data: attempt, error: attemptErr } = await admin
     .from("exam_attempts")
     .insert({
       user_id: user.id,
       school_id: schoolId,
-      total_questions: EXAM_QUESTION_COUNT,
+      total_questions: selected.length,
       score: 0,
     })
     .select("id")

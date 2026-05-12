@@ -1,7 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getAppUser } from "@/lib/auth"
 import { redirect } from "next/navigation"
-import { StartExamButton } from "./StartExamButton"
+import { SubjectPicker } from "./SubjectPicker"
 
 export default async function ExamStartPage({
   params,
@@ -21,53 +21,46 @@ export default async function ExamStartPage({
 
   if (!school) redirect("/dashboard")
 
-  const { count: questionCount } = await admin
+  // Only show subjects that actually have questions for this school
+  const { data: rows } = await admin
     .from("questions")
-    .select("*", { count: "exact", head: true })
+    .select("subject_id, subject:subjects(id, name)")
     .eq("school_id", school.id)
+
+  const subjectMap = new Map<string, { id: string; name: string }>()
+  const subjectCounts: Record<string, number> = {}
+  for (const row of rows ?? []) {
+    const s = row.subject as any
+    if (s?.id) {
+      if (!subjectMap.has(s.id)) subjectMap.set(s.id, s)
+      subjectCounts[s.id] = (subjectCounts[s.id] ?? 0) + 1
+    }
+  }
+  const availableSubjects = Array.from(subjectMap.values()).sort((a, b) =>
+    a.name.localeCompare(b.name)
+  )
 
   const startOfMonth = new Date()
   startOfMonth.setDate(1)
   startOfMonth.setHours(0, 0, 0, 0)
-
   const { count: usedThisMonth } = await admin
     .from("exam_attempts")
     .select("*", { count: "exact", head: true })
     .eq("user_id", user.id)
     .gte("created_at", startOfMonth.toISOString())
 
-  const quotaLeft = Math.max(0, 3 - (usedThisMonth ?? 0))
-  const canStart = quotaLeft > 0
+  const isPro = user.subscriptionStatus !== "FREE"
+  const quotaLeft = isPro ? null : Math.max(0, 3 - (usedThisMonth ?? 0))
+  const canStart = isPro || (quotaLeft ?? 0) > 0
 
   return (
-    <div className="mx-auto max-w-md space-y-6 p-8 text-center">
-      <div>
-        <h1 className="text-2xl font-bold">{school.name}</h1>
-        <p className="text-muted-foreground">Post-UTME Practice Exam</p>
-      </div>
-
-      <div className="grid grid-cols-3 gap-4 rounded-xl border p-4 text-sm">
-        <div>
-          <p className="text-lg font-bold">40</p>
-          <p className="text-muted-foreground">Questions</p>
-        </div>
-        <div>
-          <p className="text-lg font-bold">60</p>
-          <p className="text-muted-foreground">Minutes</p>
-        </div>
-        <div>
-          <p className="text-lg font-bold">{questionCount ?? 0}</p>
-          <p className="text-muted-foreground">In bank</p>
-        </div>
-      </div>
-
-      <p className="text-sm text-muted-foreground">
-        {canStart
-          ? `${quotaLeft} of 3 exams remaining this month`
-          : "You've used all 3 exams this month. Come back next month!"}
-      </p>
-
-      <StartExamButton schoolId={school.id} schoolSlug={params.schoolId} disabled={!canStart} />
-    </div>
+    <SubjectPicker
+      school={school}
+      schoolSlug={params.schoolId}
+      subjects={availableSubjects}
+      subjectCounts={subjectCounts}
+      quotaLeft={quotaLeft}
+      canStart={canStart}
+    />
   )
 }
