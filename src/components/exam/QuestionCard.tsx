@@ -4,6 +4,47 @@ import { cn } from "@/lib/utils"
 import { Flag, ChevronLeft, ChevronRight } from "lucide-react"
 import type { QuestionWithOptions } from "@/types"
 
+// Detect and split Roman numeral list items embedded in question text.
+// e.g. "...organs: I. Liver II. Kidney III. Stomach Which..." →
+//   intro: "...organs:"
+//   items: ["I. Liver", "II. Kidney", "III. Stomach Which..."]
+function parseRomanList(text: string): { intro: string; items: string[] } | null {
+  // Match a space followed by a Roman numeral (I-XVIII range covers exam usage) then ". "
+  const re = /\s+((?:X{0,2}I{1,3}|IV|VI{0,3}|IX|X{1,2}V?I{0,3}|X{1,3}))\.\s+/g
+  const matches = [...text.matchAll(re)]
+  if (matches.length < 2) return null
+
+  const intro = text.slice(0, matches[0].index!).trim()
+  const items: string[] = matches.map((m, i) => {
+    const contentStart = m.index! + m[0].length
+    const contentEnd = i + 1 < matches.length ? matches[i + 1].index! : text.length
+    return `${m[1]}. ${text.slice(contentStart, contentEnd).trim()}`
+  })
+  return { intro, items }
+}
+
+function QuestionText({ text }: { text: string }) {
+  const parsed = parseRomanList(text)
+  if (!parsed) {
+    return <p className="text-base leading-relaxed md:text-lg">{text}</p>
+  }
+  return (
+    <div className="space-y-2 text-base leading-relaxed md:text-lg">
+      {parsed.intro && <p>{parsed.intro}</p>}
+      <div className="space-y-1 pl-1">
+        {parsed.items.map((item, i) => (
+          <p key={i} className="flex gap-2">
+            <span className="shrink-0 font-semibold text-primary/80">
+              {item.match(/^([IVX]+\.)/)?.[1]}
+            </span>
+            <span>{item.replace(/^[IVX]+\.\s*/, "")}</span>
+          </p>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 type Props = {
   question: QuestionWithOptions
   selected: string | null
@@ -96,7 +137,7 @@ export function QuestionCard({
 
       {/* ── Question text ── */}
       <div className="rounded-2xl border bg-muted/20 px-5 py-4">
-        <p className="text-base leading-relaxed md:text-lg">{question.text}</p>
+        <QuestionText text={question.text} />
       </div>
 
       {/* ── Options ── */}

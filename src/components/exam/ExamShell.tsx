@@ -133,7 +133,7 @@ export function ExamShell({ attemptId, questions, timeLimitSecs }: Props) {
     return () => clearInterval(t)
   }, [timeLeft]) // eslint-disable-line
 
-  // ── beforeunload — warn on close / refresh / navigate away ─────────────
+  // ── beforeunload — warn on close / refresh ─────────────────────────────
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault()
@@ -141,6 +141,19 @@ export function ExamShell({ attemptId, questions, timeLimitSecs }: Props) {
     }
     window.addEventListener("beforeunload", handler)
     return () => window.removeEventListener("beforeunload", handler)
+  }, [])
+
+  // ── Back button — intercept browser/device back gesture ────────────────
+  useEffect(() => {
+    // Push a dummy state so there's something to pop back to
+    window.history.pushState(null, "", window.location.href)
+    const handlePopState = () => {
+      // Re-push so the user stays on this page
+      window.history.pushState(null, "", window.location.href)
+      if (!isSubmittingRef.current) setShowConfirm(true)
+    }
+    window.addEventListener("popstate", handlePopState)
+    return () => window.removeEventListener("popstate", handlePopState)
   }, [])
 
   // ── Anti-cheat: visibility change ──────────────────────────────────────
