@@ -14,6 +14,19 @@ export async function loginUser(
     password: formData.get("password") as string,
   })
   if (error) return { error: "Invalid email or password." }
+
+  // Route admins to the admin panel, students to dashboard (or their callbackUrl)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (user) {
+    const admin = createAdminClient()
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single()
+    if (profile?.role === "ADMIN") redirect("/admin")
+  }
+
   const callbackUrl = (formData.get("callbackUrl") as string) || "/dashboard"
   redirect(callbackUrl)
 }

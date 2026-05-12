@@ -28,6 +28,7 @@ function greeting(name: string) {
 export default async function DashboardPage() {
   const user = await getAppUser()
   if (!user) redirect("/login")
+  if (user.role === "ADMIN") redirect("/admin")
 
   const admin = createAdminClient()
   const { data: schools } = await admin.from("schools").select("id, name, abbreviation").order("name")
