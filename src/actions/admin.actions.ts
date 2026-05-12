@@ -3,6 +3,7 @@
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getAppUser } from "@/lib/auth"
 import { createQuestionSchema } from "@/lib/validations/question"
+import { revalidatePath } from "next/cache"
 import type { ActionResult } from "@/types"
 
 async function requireAdmin() {
@@ -221,6 +222,21 @@ export async function createSchool(name: string, abbreviation: string): Promise<
   return { success: true, data: { id: data.id } }
 }
 
+function normalizeSubjectName(s: string) {
+  return s.toLowerCase().replace(/[^a-z0-9]/g, "")
+}
+
+export function subjectSimilarity(
+  a: string,
+  b: string
+): "exact" | "similar" | "different" {
+  const na = normalizeSubjectName(a)
+  const nb = normalizeSubjectName(b)
+  if (na === nb) return "exact"
+  if (na.includes(nb) || nb.includes(na)) return "similar"
+  return "different"
+}
+
 export async function createSubject(name: string): Promise<ActionResult<{ id: string }>> {
   try {
     await requireAdmin()
@@ -232,6 +248,17 @@ export async function createSubject(name: string): Promise<ActionResult<{ id: st
   if (!trimmed) return { success: false, error: "Name required" }
 
   const admin = createAdminClient()
+
+  // Block exact normalized duplicates before hitting the DB
+  const { data: existing } = await admin.from("subjects").select("name")
+  const norm = normalizeSubjectName(trimmed)
+  const exactMatch = (existing ?? []).find(
+    (s) => normalizeSubjectName(s.name) === norm
+  )
+  if (exactMatch) {
+    return { success: false, error: `DUPLICATE:${exactMatch.name}` }
+  }
+
   const { data, error } = await admin
     .from("subjects")
     .insert({ name: trimmed })
@@ -240,6 +267,56 @@ export async function createSubject(name: string): Promise<ActionResult<{ id: st
 
   if (error || !data) return { success: false, error: error?.message ?? "INTERNAL" }
   return { success: true, data: { id: data.id } }
+}
+
+export async function mergeSubjects(
+  keepId: string,
+  deleteId: string
+): Promise<ActionResult<{ moved: number }>> {
+  try {
+    await requireAdmin()
+  } catch (e: unknown) {
+    return { success: false, error: (e as Error).message }
+  }
+  if (keepId === deleteId) return { success: false, error: "Same subject" }
+
+  const admin = createAdminClient()
+
+  // 1. Count then migrate questions
+  const { count: qCount } = await admin
+    .from("questions")
+    .select("id", { count: "exact", head: true })
+    .eq("subject_id", deleteId)
+
+  await admin
+    .from("questions")
+    .update({ subject_id: keepId })
+    .eq("subject_id", deleteId)
+
+  // 2. Migrate attempt_answers
+  await admin
+    .from("attempt_answers")
+    .update({ subject_id: keepId })
+    .eq("subject_id", deleteId)
+
+  // 3. Migrate profiles.student_subject_ids (array field)
+  const { data: profiles } = await admin
+    .from("profiles")
+    .select("id, student_subject_ids")
+    .contains("student_subject_ids", [deleteId])
+
+  for (const p of profiles ?? []) {
+    const updated = [...new Set(
+      (p.student_subject_ids ?? []).map((id: string) => id === deleteId ? keepId : id)
+    )]
+    await admin.from("profiles").update({ student_subject_ids: updated }).eq("id", p.id)
+  }
+
+  // 4. Delete the merged-away subject
+  await admin.from("subjects").delete().eq("id", deleteId)
+
+  revalidatePath("/admin/subjects")
+  return { success: true, data: { moved: qCount ?? 0 } }
 }
 
 export async function getSubjects() {
