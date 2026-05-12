@@ -2,7 +2,7 @@ import { getAppUser } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { BookOpen, Zap, BarChart2, Trophy, Calendar, Shield, ArrowRight, ChevronDown, Globe } from "lucide-react"
-import { PrepIQWordmark } from "@/components/shared/PrepIQLogo"
+import Image from "next/image"
 import { HeroAnimation } from "@/components/landing/HeroAnimation"
 import { AnimatedCounter } from "@/components/landing/AnimatedCounter"
 import { ScrollReveal } from "@/components/landing/ScrollReveal"
@@ -93,7 +93,7 @@ export default async function LandingPage() {
       <header className="sticky top-0 z-50 border-b border-white/10 bg-[#050d1f]/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2.5 sm:px-6">
           <Link href="/" className="flex items-center">
-            <PrepIQWordmark size={28} />
+            <Image src="/prepiqlogo.png" alt="PrepIQ" width={120} height={40} className="h-10 w-auto object-contain" priority />
           </Link>
           <div className="flex items-center gap-1 sm:gap-2">
             <Link
@@ -505,7 +505,7 @@ export default async function LandingPage() {
       <footer className="border-t bg-background">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-5 py-7 text-xs text-muted-foreground md:flex-row">
           <div className="flex items-center">
-            <PrepIQWordmark size={24} />
+            <Image src="/prepiqlogo.png" alt="PrepIQ" width={90} height={30} className="h-8 w-auto object-contain" />
           </div>
           <p>© {new Date().getFullYear()} PrepIQ. Built for Nigerian students. 🇳🇬</p>
           <div className="flex gap-6">
