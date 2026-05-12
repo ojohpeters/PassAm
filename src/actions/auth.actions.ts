@@ -76,3 +76,32 @@ export async function signOutAction(): Promise<void> {
   await supabase.auth.signOut()
   redirect("/login")
 }
+
+export async function requestPasswordReset(
+  formData: FormData
+): Promise<{ error?: string; success?: boolean }> {
+  const email = (formData.get("email") as string)?.trim()
+  if (!email) return { error: "Email is required." }
+
+  const supabase = await createClient()
+  const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${siteUrl}/auth/callback?next=/reset-password`,
+  })
+
+  if (error) return { error: "Could not send reset email. Please try again." }
+  return { success: true }
+}
+
+export async function updatePassword(
+  formData: FormData
+): Promise<{ error?: string }> {
+  const password = formData.get("password") as string
+  if (!password || password.length < 6) return { error: "Password must be at least 6 characters." }
+
+  const supabase = await createClient()
+  const { error } = await supabase.auth.updateUser({ password })
+  if (error) return { error: "Could not update password. Your reset link may have expired." }
+  redirect("/dashboard")
+}
