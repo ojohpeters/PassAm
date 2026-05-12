@@ -68,6 +68,7 @@ export default async function ProfilePage() {
   const [
     { data: profile },
     { data: schools },
+    { data: subjects },
     stats,
     rank,
     { count: studentCount },
@@ -77,6 +78,7 @@ export default async function ProfilePage() {
   ] = await Promise.all([
     admin.from("profiles").select("*").eq("id", user.id).single(),
     admin.from("schools").select("id, name, abbreviation").order("name"),
+    admin.from("subjects").select("id, name").order("name"),
     getDashboardStats(),
     getStudentRank(),
     admin.from("profiles").select("*", { count: "exact", head: true }),
@@ -293,6 +295,9 @@ export default async function ProfilePage() {
             targetSchool={profile?.target_school ?? null}
             avatarUrl={profile?.avatar_url ?? null}
             schools={schools ?? []}
+            subjects={subjects ?? []}
+            aspiringCourse={user.aspiringCourse}
+            subjectIds={user.studentSubjectIds}
             initials={initials}
           />
         </div>

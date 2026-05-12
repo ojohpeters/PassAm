@@ -4,8 +4,25 @@ import { useRef, useState, useTransition } from "react"
 import { updateProfile, uploadAvatar } from "@/actions/profile.actions"
 import { signOutAction } from "@/actions/auth.actions"
 import { toast } from "sonner"
-import { Camera, Loader2, LogOut, Save } from "lucide-react"
+import { Camera, Check, Lock, Loader2, LogOut, Save } from "lucide-react"
 import { cn } from "@/lib/utils"
+
+const COURSES = [
+  "Medicine & Surgery",
+  "Pharmacy",
+  "Dentistry",
+  "Nursing",
+  "Engineering",
+  "Computer Science",
+  "Pure & Applied Sciences",
+  "Agricultural Science",
+  "Law",
+  "Economics",
+  "Business Administration",
+  "Mass Communication",
+  "Architecture",
+  "Others",
+]
 
 type Props = {
   userId: string
@@ -14,30 +31,58 @@ type Props = {
   targetSchool: string | null
   avatarUrl: string | null
   schools: { id: string; name: string; abbreviation: string }[]
+  subjects: { id: string; name: string }[]
+  aspiringCourse: string | null
+  subjectIds: string[]
   initials: string
 }
 
-export function ProfileEditForm({ userId, name, bio, targetSchool, avatarUrl, schools, initials }: Props) {
+export function ProfileEditForm({
+  name,
+  bio,
+  targetSchool,
+  avatarUrl,
+  schools,
+  subjects,
+  aspiringCourse,
+  subjectIds,
+  initials,
+}: Props) {
   const [preview, setPreview] = useState<string | null>(avatarUrl)
   const [bioLen, setBioLen] = useState(bio?.length ?? 0)
   const [uploading, setUploading] = useState(false)
   const [isPending, startTransition] = useTransition()
   const fileRef = useRef<HTMLInputElement>(null)
 
+  // English is always locked — find it by name
+  const englishSubject = subjects.find((s) => s.name.toLowerCase().includes("english"))
+  const nonEnglishSubjects = subjects.filter((s) => !s.name.toLowerCase().includes("english"))
+
+  // selectedSubjectIds always includes English if it exists
+  const [selectedSubjectIds, setSelectedSubjectIds] = useState<string[]>(() => {
+    const base = subjectIds.length > 0 ? subjectIds : []
+    if (englishSubject && !base.includes(englishSubject.id)) {
+      return [englishSubject.id, ...base]
+    }
+    return base
+  })
+
+  function toggleSubject(id: string) {
+    setSelectedSubjectIds((prev) =>
+      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
+    )
+  }
+
   async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-
-    // Instant local preview
     const objectUrl = URL.createObjectURL(file)
     setPreview(objectUrl)
-
     setUploading(true)
     const fd = new FormData()
     fd.append("avatar", file)
     const result = await uploadAvatar(fd)
     setUploading(false)
-
     if (result.success) {
       toast.success("Profile photo updated!")
     } else {
@@ -47,6 +92,8 @@ export function ProfileEditForm({ userId, name, bio, targetSchool, avatarUrl, sc
   }
 
   function handleSave(formData: FormData) {
+    // Inject selected subject IDs as repeated fields
+    selectedSubjectIds.forEach((id) => formData.append("subject_ids", id))
     startTransition(async () => {
       const result = await updateProfile(formData)
       if (result.success) {
@@ -98,7 +145,7 @@ export function ProfileEditForm({ userId, name, bio, targetSchool, avatarUrl, sc
       </div>
 
       {/* ── Profile fields ── */}
-      <form action={handleSave} className="space-y-4">
+      <form action={handleSave} className="space-y-5">
         <div className="space-y-1.5">
           <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Display Name
@@ -148,6 +195,78 @@ export function ProfileEditForm({ userId, name, bio, targetSchool, avatarUrl, sc
             ))}
           </select>
         </div>
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Aspiring Course
+          </label>
+          <select
+            name="aspiring_course"
+            defaultValue={aspiringCourse ?? ""}
+            className="w-full rounded-xl border bg-background px-4 py-3 text-sm font-medium text-foreground outline-none ring-primary/40 transition-all focus:border-primary focus:ring-2 dark:border-border"
+          >
+            <option value="">— Select your course —</option>
+            {COURSES.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </div>
+
+        {subjects.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                My Subjects
+              </label>
+              <span className="text-xs text-muted-foreground">
+                {selectedSubjectIds.length} selected
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              These subjects are used for your daily quiz. English is always included.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {/* English — always locked */}
+              {englishSubject && (
+                <div className="flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-3 py-2.5">
+                  <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-primary">
+                    <Check className="h-3 w-3 text-primary-foreground" />
+                  </div>
+                  <span className="flex-1 text-sm font-medium">{englishSubject.name}</span>
+                  <Lock className="h-3 w-3 shrink-0 text-primary/60" />
+                </div>
+              )}
+
+              {/* Other subjects — toggleable */}
+              {nonEnglishSubjects.map((s) => {
+                const active = selectedSubjectIds.includes(s.id)
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => toggleSubject(s.id)}
+                    className={cn(
+                      "flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left transition-all duration-150",
+                      active
+                        ? "border-primary/30 bg-primary/5"
+                        : "border-border bg-background hover:bg-muted/50"
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-colors",
+                        active ? "border-primary bg-primary" : "border-muted-foreground/40 bg-transparent"
+                      )}
+                    >
+                      {active && <Check className="h-3 w-3 text-primary-foreground" />}
+                    </div>
+                    <span className="text-sm font-medium">{s.name}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         <button
           type="submit"

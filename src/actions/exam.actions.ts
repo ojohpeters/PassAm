@@ -44,15 +44,23 @@ export async function startExam(
     .single()
   if (!school) return { success: false, error: "NOT_FOUND" }
 
-  // Distribute 40 questions evenly across selected subjects
-  const perSubject = Math.floor(EXAM_QUESTION_COUNT / subjectIds.length)
-  // Any remainder goes to the first subject (English)
-  const remainder = EXAM_QUESTION_COUNT - perSubject * subjectIds.length
+  // Read optional per-school config (admin-set question counts)
+  const { data: cfg } = await admin
+    .from("school_exam_config")
+    .select("total_questions, subject_question_counts")
+    .eq("school_id", schoolId)
+    .single()
+
+  const totalTarget = cfg?.total_questions ?? EXAM_QUESTION_COUNT
+  const subjectCfg: Record<string, number> = (cfg?.subject_question_counts as Record<string, number>) ?? {}
 
   const selected: QuestionWithOptions[] = []
 
   for (let i = 0; i < subjectIds.length; i++) {
-    const take = perSubject + (i === 0 ? remainder : 0)
+    const subjectId = subjectIds[i]
+    // Use admin-configured count, then even split, then take all available
+    const idealPerSubject = subjectCfg[subjectId] ?? Math.floor(totalTarget / subjectIds.length)
+
     const { data: pool } = await admin
       .from("questions")
       .select(`
@@ -61,12 +69,14 @@ export async function startExam(
         subject:subjects(name)
       `)
       .eq("school_id", schoolId)
-      .eq("subject_id", subjectIds[i])
+      .eq("subject_id", subjectId)
 
-    if (!pool || pool.length < take) {
+    if (!pool || pool.length === 0) {
       return { success: false, error: "INSUFFICIENT_QUESTIONS" }
     }
 
+    // Never error just because we have one fewer than ideal — take what's available
+    const take = Math.min(idealPerSubject, pool.length)
     const picked = pool
       .sort(() => Math.random() - 0.5)
       .slice(0, take) as unknown as QuestionWithOptions[]

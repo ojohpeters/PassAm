@@ -11,6 +11,8 @@ export async function updateProfile(formData: FormData) {
   const name = (formData.get("name") as string)?.trim()
   const bio = (formData.get("bio") as string)?.trim() || null
   const targetSchool = (formData.get("target_school") as string)?.trim() || null
+  const aspiringCourse = (formData.get("aspiring_course") as string)?.trim() || null
+  const subjectIds = formData.getAll("subject_ids") as string[]
 
   if (!name || name.length < 2) return { success: false as const, error: "Name must be at least 2 characters" }
   if (bio && bio.length > 160) return { success: false as const, error: "Bio must be 160 characters or less" }
@@ -18,7 +20,13 @@ export async function updateProfile(formData: FormData) {
   const admin = createAdminClient()
   const { error } = await admin
     .from("profiles")
-    .update({ name, bio, target_school: targetSchool })
+    .update({
+      name,
+      bio,
+      target_school: targetSchool,
+      aspiring_course: aspiringCourse,
+      student_subject_ids: subjectIds.length > 0 ? subjectIds : null,
+    })
     .eq("id", user.id)
 
   if (error) return { success: false as const, error: "Failed to save changes" }

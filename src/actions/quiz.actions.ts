@@ -22,7 +22,7 @@ export async function getDailyQuiz() {
       daily_quiz_questions(
         id, question_id, selected_option_id, is_correct,
         question:questions(
-          id, text,
+          id, text, explanation,
           options(id, label, text),
           subject:subjects(name)
         )
@@ -34,14 +34,16 @@ export async function getDailyQuiz() {
 
   if (existing) return { success: true, data: shapeQuiz(existing) } as const
 
-  const { data: pool } = await admin
+  let poolQuery = admin
     .from("questions")
-    .select(`
-      id, subject_id,
-      options(id, label, text),
-      subject:subjects(name)
-    `)
-    .limit(100)
+    .select(`id, subject_id, options(id, label, text), subject:subjects(name)`)
+    .limit(200)
+
+  if (user.studentSubjectIds.length > 0) {
+    poolQuery = poolQuery.in("subject_id", user.studentSubjectIds)
+  }
+
+  const { data: pool } = await poolQuery
 
   if (!pool || pool.length < DAILY_QUIZ_COUNT) {
     return { success: false, error: "INTERNAL" } as const
@@ -68,7 +70,7 @@ export async function getDailyQuiz() {
       daily_quiz_questions(
         id, question_id, selected_option_id, is_correct,
         question:questions(
-          id, text,
+          id, text, explanation,
           options(id, label, text),
           subject:subjects(name)
         )
@@ -92,6 +94,7 @@ function shapeQuiz(raw: any) {
       question: {
         id: dqq.question?.id ?? dqq.question_id,
         text: dqq.question?.text ?? "",
+        explanation: dqq.question?.explanation ?? null,
         subject: dqq.question?.subject ?? { name: "" },
         options: dqq.question?.options ?? [],
       },

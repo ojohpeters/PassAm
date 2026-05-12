@@ -6,7 +6,8 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { formatDate, cn } from "@/lib/utils"
-import { BookOpen, TrendingUp, Flame, Trophy, ChevronRight, Bell, MessageCircle } from "lucide-react"
+import { BookOpen, TrendingUp, Flame, Trophy, ChevronRight } from "lucide-react"
+import { NotificationBanner } from "@/components/dashboard/NotificationBanner"
 
 const SCHOOL_CFG: Record<string, { grad: string; abbrevColor: string }> = {
   UNILAG:  { grad: "from-blue-600 to-blue-900",     abbrevColor: "text-blue-200"    },
@@ -57,16 +58,8 @@ export default async function DashboardPage() {
 
       {/* ── Admin broadcast notifications ── */}
       {(unreadNotifs ?? []).length > 0 && (
-        <div className="dash-in space-y-2" style={{ animationDelay: "0ms" }}>
-          {(unreadNotifs ?? []).map((n) => (
-            <div key={n.id} className="flex items-start gap-3 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
-              <Bell className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold">{n.title}</p>
-                <p className="text-xs text-muted-foreground">{n.body}</p>
-              </div>
-            </div>
-          ))}
+        <div className="dash-in" style={{ animationDelay: "0ms" }}>
+          <NotificationBanner notifications={unreadNotifs ?? []} />
         </div>
       )}
 

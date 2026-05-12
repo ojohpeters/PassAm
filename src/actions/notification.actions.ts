@@ -79,3 +79,15 @@ export async function markAllRead() {
     .eq("user_id", user.id)
     .eq("is_read", false)
 }
+
+export async function markOneRead(notifId: string) {
+  const user = await getAppUser()
+  if (!user) return
+
+  const admin = createAdminClient()
+  await admin
+    .from("notifications")
+    .update({ is_read: true })
+    .eq("id", notifId)
+    .eq("user_id", user.id)
+}

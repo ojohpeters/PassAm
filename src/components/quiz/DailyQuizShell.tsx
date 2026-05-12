@@ -14,6 +14,7 @@ type QuizItem = {
   question: {
     id: string
     text: string
+    explanation: string | null
     subject: { name: string }
     options: Option[]
   }
@@ -108,6 +109,18 @@ export function DailyQuizShell({ quiz }: { quiz: Quiz }) {
           )
         })}
       </div>
+
+      {revealed && item.question.explanation && (
+        <div className={cn(
+          "rounded-xl border px-4 py-3 text-sm",
+          revealed.isCorrect
+            ? "border-green-200 bg-green-50 text-green-900 dark:border-green-800/50 dark:bg-green-950/40 dark:text-green-100"
+            : "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800/50 dark:bg-amber-950/40 dark:text-amber-100"
+        )}>
+          <p className="mb-1 text-xs font-bold uppercase tracking-wide opacity-70">Explanation</p>
+          <p className="leading-relaxed">{item.question.explanation}</p>
+        </div>
+      )}
 
       {revealed && (
         <button

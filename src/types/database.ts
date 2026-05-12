@@ -14,6 +14,8 @@ export interface Database {
           avatar_url: string | null
           target_school: string | null
           is_banned: boolean
+          aspiring_course: string | null
+          student_subject_ids: string[] | null
           created_at: string
           updated_at: string
         }
@@ -27,6 +29,8 @@ export interface Database {
           avatar_url?: string | null
           target_school?: string | null
           is_banned?: boolean
+          aspiring_course?: string | null
+          student_subject_ids?: string[] | null
           created_at?: string
           updated_at?: string
         }
@@ -40,6 +44,35 @@ export interface Database {
           avatar_url?: string | null
           target_school?: string | null
           is_banned?: boolean
+          aspiring_course?: string | null
+          student_subject_ids?: string[] | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      school_exam_config: {
+        Row: {
+          id: string
+          school_id: string
+          total_questions: number
+          subject_question_counts: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          school_id: string
+          total_questions?: number
+          subject_question_counts?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          school_id?: string
+          total_questions?: number
+          subject_question_counts?: Json
           created_at?: string
           updated_at?: string
         }
@@ -385,7 +418,8 @@ export type ExamAttempt    = Database["public"]["Tables"]["exam_attempts"]["Row"
 export type AttemptAnswer  = Database["public"]["Tables"]["attempt_answers"]["Row"]
 export type DailyQuiz      = Database["public"]["Tables"]["daily_quizzes"]["Row"]
 export type Streak         = Database["public"]["Tables"]["streaks"]["Row"]
-export type Notification   = Database["public"]["Tables"]["notifications"]["Row"]
+export type Notification      = Database["public"]["Tables"]["notifications"]["Row"]
+export type SchoolExamConfig  = Database["public"]["Tables"]["school_exam_config"]["Row"]
 
 export type AppUser = {
   id: string
@@ -394,4 +428,6 @@ export type AppUser = {
   role: "STUDENT" | "ADMIN"
   subscriptionStatus: "FREE" | "PRO"
   isBanned: boolean
+  aspiringCourse: string | null
+  studentSubjectIds: string[]
 }

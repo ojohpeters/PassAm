@@ -10,7 +10,7 @@ export async function getAppUser(): Promise<AppUser | null> {
   const admin = createAdminClient()
   const { data: profile } = await admin
     .from("profiles")
-    .select("name, role, subscription_status, is_banned")
+    .select("name, role, subscription_status, is_banned, aspiring_course, student_subject_ids")
     .eq("id", user.id)
     .single()
 
@@ -23,5 +23,7 @@ export async function getAppUser(): Promise<AppUser | null> {
     role: profile.role,
     subscriptionStatus: profile.subscription_status,
     isBanned: profile.is_banned ?? false,
+    aspiringCourse: profile.aspiring_course ?? null,
+    studentSubjectIds: (profile.student_subject_ids as string[]) ?? [],
   }
 }

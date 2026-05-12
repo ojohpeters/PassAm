@@ -3,12 +3,13 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { LayoutDashboard, BookOpen, Users, Bell, MessageSquare, ChevronLeft, LogOut, BookMarked } from "lucide-react"
+import { LayoutDashboard, BookOpen, Users, Bell, MessageSquare, ChevronLeft, LogOut, BookMarked, School } from "lucide-react"
 import { signOutAction } from "@/actions/auth.actions"
 
 const NAV = [
   { href: "/admin",               label: "Overview",       icon: LayoutDashboard, exact: true },
   { href: "/admin/questions",     label: "Questions",      icon: BookOpen                     },
+  { href: "/admin/schools",       label: "Exam Config",    icon: School                       },
   { href: "/admin/students",      label: "Students",       icon: Users                        },
   { href: "/admin/notifications", label: "Notifications",  icon: Bell                         },
   { href: "/admin/feedback",      label: "Reports",        icon: MessageSquare                },
