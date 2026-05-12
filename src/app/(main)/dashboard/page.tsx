@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { formatDate, cn } from "@/lib/utils"
-import { BookOpen, TrendingUp, Flame, Trophy, ChevronRight } from "lucide-react"
+import { BookOpen, TrendingUp, Flame, Trophy, ChevronRight, Globe } from "lucide-react"
 import { NotificationBanner } from "@/components/dashboard/NotificationBanner"
 
 const SCHOOL_CFG: Record<string, { grad: string; abbrevColor: string }> = {
@@ -175,7 +175,7 @@ export default async function DashboardPage() {
           <span className="text-xs text-muted-foreground">{schools?.length ?? 0} schools</span>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {(schools ?? []).map((s, i) => {
+          {(schools ?? []).filter((s) => s.abbreviation !== "GENERAL").map((s, i) => {
             const cfg = SCHOOL_CFG[s.abbreviation] ?? DEFAULT_CFG
             return (
               <Link
@@ -199,7 +199,33 @@ export default async function DashboardPage() {
               </Link>
             )
           })}
+
+          {/* General Practice card */}
+          <Link
+            href="/exam/general"
+            className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-600 to-slate-800 p-px shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.97]"
+          >
+            <div className="flex h-[88px] flex-col justify-between rounded-[calc(1rem-1px)] bg-gradient-to-br from-black/20 to-black/55 p-3">
+              <Globe className="h-5 w-5 text-slate-300" />
+              <span className="text-[11px] font-semibold leading-tight text-white/80">
+                General Practice
+              </span>
+            </div>
+          </Link>
         </div>
+
+        {/* School not listed callout */}
+        <Link
+          href="/request-school"
+          className="flex items-center gap-3 rounded-2xl border border-dashed border-primary/30 bg-primary/5 px-4 py-3 transition-all hover:border-primary/50 hover:bg-primary/10 active:scale-[0.99]"
+        >
+          <span className="text-xl">🏫</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-primary">Your school not listed?</p>
+            <p className="text-xs text-muted-foreground">Don&apos;t panic — tell us your school and we&apos;ll add it. Use General Practice in the meantime.</p>
+          </div>
+          <ChevronRight className="h-4 w-4 shrink-0 text-primary" />
+        </Link>
       </div>
 
       {/* ── Recent Attempts ── */}

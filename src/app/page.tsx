@@ -1,7 +1,8 @@
 import { getAppUser } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import Link from "next/link"
-import { BookOpen, Zap, BarChart2, Trophy, Calendar, Shield, ArrowRight, ChevronDown } from "lucide-react"
+import { BookOpen, Zap, BarChart2, Trophy, Calendar, Shield, ArrowRight, ChevronDown, Globe } from "lucide-react"
+import Image from "next/image"
 import { HeroAnimation } from "@/components/landing/HeroAnimation"
 import { AnimatedCounter } from "@/components/landing/AnimatedCounter"
 import { ScrollReveal } from "@/components/landing/ScrollReveal"
@@ -90,15 +91,21 @@ export default async function LandingPage() {
 
       {/* ── Nav ────────────────────────────────────────────── */}
       <header className="sticky top-0 z-50 border-b border-white/10 bg-[#050d1f]/80 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3.5 sm:px-6">
-          <Link href="/" className="flex items-center gap-2 font-black text-xl text-white tracking-tight">
-            <BookOpen className="h-5 w-5 text-blue-400" />
-            PassAm
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2.5 sm:px-6">
+          <Link href="/" className="flex items-center">
+            <Image
+              src="/logo.jpeg"
+              alt="PassAm Prep"
+              width={120}
+              height={40}
+              className="h-10 w-auto object-contain"
+              priority
+            />
           </Link>
           <div className="flex items-center gap-2">
             <Link
               href="/login"
-              className="rounded-lg px-3 py-2 text-sm font-medium text-white/70 transition-colors hover:text-white"
+              className="hidden rounded-lg px-3 py-2 text-sm font-medium text-white/70 transition-colors hover:text-white sm:block"
             >
               Sign in
             </Link>
@@ -222,9 +229,19 @@ export default async function LandingPage() {
               {s}
             </span>
           ))}
-          <span className="rounded-full border border-dashed bg-background px-5 py-2 text-sm font-medium text-muted-foreground">
+          <Link
+            href="/register"
+            className="rounded-full border border-dashed border-primary/30 bg-primary/5 px-5 py-2 text-sm font-semibold text-primary transition-all hover:bg-primary/10"
+          >
             + more coming
-          </span>
+          </Link>
+          <Link
+            href="/register"
+            className="flex items-center gap-1.5 rounded-full border border-dashed border-slate-400/30 bg-slate-50/5 px-5 py-2 text-sm font-semibold text-slate-400 transition-all hover:bg-slate-400/10"
+          >
+            <Globe className="h-3.5 w-3.5" />
+            General Practice
+          </Link>
         </div>
       </section>
 
@@ -488,9 +505,8 @@ export default async function LandingPage() {
       {/* ── Footer ─────────────────────────────────────────── */}
       <footer className="border-t bg-background">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-5 py-7 text-xs text-muted-foreground md:flex-row">
-          <div className="flex items-center gap-2 font-bold text-foreground">
-            <BookOpen className="h-4 w-4 text-primary" />
-            PassAm
+          <div className="flex items-center">
+            <Image src="/logo.jpeg" alt="PassAm Prep" width={90} height={30} className="h-8 w-auto object-contain" />
           </div>
           <p>© {new Date().getFullYear()} PassAm. Built for Nigerian students. 🇳🇬</p>
           <div className="flex gap-6">

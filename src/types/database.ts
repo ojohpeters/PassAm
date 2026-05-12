@@ -393,6 +393,42 @@ export interface Database {
         }
         Relationships: []
       }
+      school_requests: {
+        Row: {
+          id: string
+          user_id: string | null
+          user_name: string | null
+          user_email: string | null
+          school_name: string
+          message: string | null
+          status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id?: string | null
+          user_name?: string | null
+          user_email?: string | null
+          school_name: string
+          message?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string | null
+          user_name?: string | null
+          user_email?: string | null
+          school_name?: string
+          message?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: {
@@ -420,6 +456,7 @@ export type DailyQuiz      = Database["public"]["Tables"]["daily_quizzes"]["Row"
 export type Streak         = Database["public"]["Tables"]["streaks"]["Row"]
 export type Notification      = Database["public"]["Tables"]["notifications"]["Row"]
 export type SchoolExamConfig  = Database["public"]["Tables"]["school_exam_config"]["Row"]
+export type SchoolRequest     = Database["public"]["Tables"]["school_requests"]["Row"]
 
 export type AppUser = {
   id: string

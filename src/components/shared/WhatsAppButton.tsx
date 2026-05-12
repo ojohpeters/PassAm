@@ -1,21 +1,74 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 
 const WA_URL =
   "https://wa.me/2348139479853?text=Hi%2C+I%27m+a+PassAm+student.+I%27m+stuck+on+a+topic+and+need+help+%F0%9F%93%9A"
 
+const MESSAGES = [
+  { title: "Stuck on a topic? 📚", body: "Chat the teacher — he'll demystify it till it fully clicks." },
+  { title: "Got wahala with a subject? 🤔", body: "Drop your question on WhatsApp. Personal, fast, free." },
+  { title: "Don't suffer in silence! 💡", body: "The teacher is right here. Ask that question now." },
+]
+
 export function WhatsAppButton() {
   const [showTip, setShowTip] = useState(false)
+  const [dismissed, setDismissed] = useState(false)
+  const [msgIndex, setMsgIndex] = useState(0)
+  const showCountRef = useRef(0)
+  const MAX_AUTO_SHOWS = 3
+
+  useEffect(() => {
+    if (dismissed) return
+
+    const triggerShow = () => {
+      if (dismissed || showCountRef.current >= MAX_AUTO_SHOWS) return
+      setMsgIndex(showCountRef.current % MESSAGES.length)
+      setShowTip(true)
+      showCountRef.current++
+      setTimeout(() => setShowTip((cur) => cur), 7000)
+      // Auto-hide after 7s
+      const hide = setTimeout(() => setShowTip(false), 7000)
+      return hide
+    }
+
+    const first = setTimeout(triggerShow, 10000)
+    const interval = setInterval(triggerShow, 50000)
+
+    return () => {
+      clearTimeout(first)
+      clearInterval(interval)
+    }
+  }, [dismissed])
+
+  function dismiss(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    setShowTip(false)
+    setDismissed(true)
+  }
+
+  const msg = MESSAGES[msgIndex]
 
   return (
     <div className="fixed bottom-24 right-4 z-50 md:bottom-6 md:right-6">
       {/* Tooltip */}
       {showTip && (
-        <div className="absolute bottom-14 right-0 w-52 rounded-2xl bg-foreground px-3 py-2.5 text-xs font-medium text-background shadow-xl">
-          <p className="font-bold">Stuck on a topic? 📚</p>
-          <p className="mt-0.5 opacity-80">Chat the teacher — he&apos;ll break it down till it clicks.</p>
-          <div className="absolute -bottom-1.5 right-4 h-3 w-3 rotate-45 bg-foreground" />
+        <div className="absolute bottom-16 right-0 w-56 animate-in slide-in-from-bottom-2 fade-in duration-200">
+          <div className="relative rounded-2xl bg-foreground px-4 py-3 shadow-2xl shadow-black/30">
+            <button
+              onClick={dismiss}
+              className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-muted-foreground/70 text-background transition-colors hover:bg-muted-foreground"
+              aria-label="Dismiss"
+            >
+              <svg viewBox="0 0 10 10" className="h-2.5 w-2.5 stroke-current fill-none" strokeWidth="2" strokeLinecap="round">
+                <path d="M1 1l8 8M9 1L1 9" />
+              </svg>
+            </button>
+            <p className="text-xs font-bold text-background">{msg.title}</p>
+            <p className="mt-0.5 text-[11px] leading-relaxed text-background/70">{msg.body}</p>
+            <div className="absolute -bottom-1.5 right-5 h-3 w-3 rotate-45 bg-foreground" />
+          </div>
         </div>
       )}
 
@@ -23,9 +76,8 @@ export function WhatsAppButton() {
         href={WA_URL}
         target="_blank"
         rel="noopener noreferrer"
-        onMouseEnter={() => setShowTip(true)}
-        onMouseLeave={() => setShowTip(false)}
-        onTouchStart={() => setShowTip(true)}
+        onMouseEnter={() => !dismissed && setShowTip(true)}
+        onMouseLeave={() => !dismissed && setShowTip(false)}
         aria-label="Chat with the teacher on WhatsApp"
         className="flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] shadow-lg shadow-[#25D366]/40 transition-all duration-200 hover:scale-110 hover:shadow-xl hover:shadow-[#25D366]/50 active:scale-95"
       >

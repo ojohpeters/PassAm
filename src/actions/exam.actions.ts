@@ -95,6 +95,76 @@ export async function startExam(
   }
 }
 
+export async function startGeneralExam(
+  subjectIds: string[]
+): Promise<ActionResult<{ attemptId: string; questions: QuestionWithOptions[]; timeLimitSecs: number }>> {
+  const user = await getAppUser()
+  if (!user) return { success: false, error: "UNAUTHORIZED" }
+
+  if (!subjectIds.length) return { success: false, error: "NO_SUBJECTS" }
+
+  const admin = createAdminClient()
+
+  const { data: generalSchool } = await admin
+    .from("schools")
+    .select("id")
+    .eq("abbreviation", "GENERAL")
+    .single()
+
+  if (!generalSchool) return { success: false, error: "GENERAL_NOT_SETUP" }
+
+  const perSubject = Math.floor(EXAM_QUESTION_COUNT / subjectIds.length)
+  const selected: QuestionWithOptions[] = []
+
+  for (const subjectId of subjectIds) {
+    const { data: pool } = await admin
+      .from("questions")
+      .select(`
+        id, text, image_url, explanation, year, school_id, subject_id,
+        options(id, label, text),
+        subject:subjects(name)
+      `)
+      .eq("subject_id", subjectId)
+
+    if (!pool || pool.length === 0) {
+      return { success: false, error: "INSUFFICIENT_QUESTIONS" }
+    }
+
+    const take = Math.min(perSubject, pool.length)
+    const picked = pool
+      .sort(() => Math.random() - 0.5)
+      .slice(0, take) as unknown as QuestionWithOptions[]
+    selected.push(...picked)
+  }
+
+  const { data: attempt, error: attemptErr } = await admin
+    .from("exam_attempts")
+    .insert({
+      user_id: user.id,
+      school_id: generalSchool.id,
+      total_questions: selected.length,
+      score: 0,
+    })
+    .select("id")
+    .single()
+
+  if (attemptErr || !attempt) return { success: false, error: "INTERNAL" }
+
+  await admin.from("attempt_answers").insert(
+    selected.map((q) => ({
+      attempt_id: attempt.id,
+      question_id: q.id,
+      subject_id: q.subject_id,
+      is_correct: false,
+    }))
+  )
+
+  return {
+    success: true,
+    data: { attemptId: attempt.id, questions: selected, timeLimitSecs: EXAM_TIME_LIMIT_SECS },
+  }
+}
+
 export async function submitExam(
   input: unknown
 ): Promise<ActionResult<ExamResult>> {
