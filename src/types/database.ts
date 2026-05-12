@@ -429,6 +429,45 @@ export interface Database {
         }
         Relationships: []
       }
+      study_tips: {
+        Row: {
+          id: string
+          title: string
+          content: string
+          image_url: string | null
+          category: string
+          type: string
+          is_published: boolean
+          pinned: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          title: string
+          content: string
+          image_url?: string | null
+          category?: string
+          type?: string
+          is_published?: boolean
+          pinned?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          title?: string
+          content?: string
+          image_url?: string | null
+          category?: string
+          type?: string
+          is_published?: boolean
+          pinned?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: {
@@ -457,6 +496,7 @@ export type Streak         = Database["public"]["Tables"]["streaks"]["Row"]
 export type Notification      = Database["public"]["Tables"]["notifications"]["Row"]
 export type SchoolExamConfig  = Database["public"]["Tables"]["school_exam_config"]["Row"]
 export type SchoolRequest     = Database["public"]["Tables"]["school_requests"]["Row"]
+export type StudyTip          = Database["public"]["Tables"]["study_tips"]["Row"]
 
 export type AppUser = {
   id: string

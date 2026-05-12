@@ -1,12 +1,13 @@
 import { getDashboardStats } from "@/actions/analytics.actions"
 import { getAttemptHistory } from "@/actions/exam.actions"
 import { getStudentRank } from "@/actions/leaderboard.actions"
+import { getLatestTips } from "@/actions/tips.actions"
 import { getAppUser } from "@/lib/auth"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { formatDate, cn } from "@/lib/utils"
-import { BookOpen, TrendingUp, Flame, Trophy, ChevronRight, Globe } from "lucide-react"
+import { BookOpen, TrendingUp, Flame, Trophy, ChevronRight, Globe, Lightbulb, ExternalLink } from "lucide-react"
 import { NotificationBanner } from "@/components/dashboard/NotificationBanner"
 
 const SCHOOL_CFG: Record<string, { grad: string; abbrevColor: string }> = {
@@ -34,7 +35,7 @@ export default async function DashboardPage() {
   const admin = createAdminClient()
   const { data: schools } = await admin.from("schools").select("id, name, abbreviation").order("name")
 
-  const [stats, history, rank, { data: unreadNotifs }] = await Promise.all([
+  const [stats, history, rank, { data: unreadNotifs }, latestTips] = await Promise.all([
     getDashboardStats(),
     getAttemptHistory(1, 5),
     getStudentRank(),
@@ -45,6 +46,7 @@ export default async function DashboardPage() {
       .eq("is_read", false)
       .order("created_at", { ascending: false })
       .limit(3),
+    getLatestTips(2),
   ])
 
   const firstName = user.name.split(" ")[0]
@@ -297,6 +299,45 @@ export default async function DashboardPage() {
             </div>
             <p className="font-bold">No exams yet</p>
             <p className="mt-1 text-sm text-muted-foreground">Pick a school above to start your first practice</p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Study Tips widget ── */}
+      {latestTips.length > 0 && (
+        <div className="dash-in space-y-3" style={{ animationDelay: "360ms" }}>
+          <div className="flex items-center justify-between">
+            <h2 className="font-bold text-sm uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+              <Lightbulb className="h-4 w-4 text-amber-500" />
+              Latest Tips from Ojochegbe
+            </h2>
+            <Link href="/tips" className="flex items-center gap-0.5 text-xs font-semibold text-primary">
+              See all <ChevronRight className="h-3 w-3" />
+            </Link>
+          </div>
+          <div className="space-y-2">
+            {latestTips.map((tip) => {
+              const typeEmoji = tip.type === "TIP" ? "📚" : tip.type === "TRICK" ? "🧪" : "⚡"
+              return (
+                <Link
+                  key={tip.id}
+                  href="/tips"
+                  className="group flex items-start gap-3 rounded-2xl border bg-background p-3.5 transition-all hover:border-primary/30 hover:bg-accent/30 active:scale-[0.99]"
+                >
+                  <span className="shrink-0 text-xl">{typeEmoji}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-sm leading-snug line-clamp-1">{tip.title}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2 leading-relaxed">{tip.content}</p>
+                    {tip.image_url && (
+                      <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-primary">
+                        <ExternalLink className="h-2.5 w-2.5" /> Resource attached
+                      </span>
+                    )}
+                  </div>
+                  <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">{tip.category}</span>
+                </Link>
+              )
+            })}
           </div>
         </div>
       )}
