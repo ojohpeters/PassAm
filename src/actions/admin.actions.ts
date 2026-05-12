@@ -390,38 +390,53 @@ export type DuplicateGroup = {
     text: string
     year: number | null
     created_at: string
-    school: { name: string; abbreviation: string } | null
+    school: { id: string; name: string; abbreviation: string } | null
     subject: { name: string } | null
   }>
 }
 
-export async function findDuplicateQuestions(): Promise<DuplicateGroup[]> {
+export async function findDuplicateQuestions(
+  schoolId?: string,
+  page = 1,
+  pageSize = 20
+): Promise<{ groups: DuplicateGroup[]; total: number }> {
   try {
     await requireAdmin()
   } catch {
-    return []
+    return { groups: [], total: 0 }
   }
 
   const admin = createAdminClient()
-  const { data: questions } = await admin
+
+  let q = admin
     .from("questions")
-    .select("id, text, year, created_at, school:schools(name, abbreviation), subject:subjects(name)")
+    .select("id, text, year, created_at, school:schools(id, name, abbreviation), subject:subjects(name)")
     .order("created_at", { ascending: true })
 
-  if (!questions) return []
+  // When filtering by school, only load questions from that school
+  if (schoolId) q = q.eq("school_id", schoolId)
 
-  const groups = new Map<string, DuplicateGroup["questions"]>()
-  for (const q of questions) {
-    const key = normalizeText(q.text)
-    const existing = groups.get(key) ?? []
-    existing.push(q as unknown as DuplicateGroup["questions"][0])
-    groups.set(key, existing)
+  const { data: questions } = await q
+  if (!questions) return { groups: [], total: 0 }
+
+  const map = new Map<string, DuplicateGroup["questions"]>()
+  for (const raw of questions) {
+    const key = normalizeText(raw.text)
+    const existing = map.get(key) ?? []
+    existing.push(raw as unknown as DuplicateGroup["questions"][0])
+    map.set(key, existing)
   }
 
-  return [...groups.entries()]
+  const allGroups = [...map.entries()]
     .filter(([, qs]) => qs.length > 1)
-    .map(([normalizedText, questions]) => ({ normalizedText, questions }))
+    .map(([normalizedText, qs]) => ({ normalizedText, questions: qs }))
     .sort((a, b) => b.questions.length - a.questions.length)
+
+  const total = allGroups.length
+  const start = (page - 1) * pageSize
+  const groups = allGroups.slice(start, start + pageSize)
+
+  return { groups, total }
 }
 
 // ── Student management ────────────────────────────────────────────────────────

@@ -309,7 +309,7 @@ export default async function DashboardPage() {
           <div className="flex items-center justify-between">
             <h2 className="font-bold text-sm uppercase tracking-wider text-muted-foreground flex items-center gap-2">
               <Lightbulb className="h-4 w-4 text-amber-500" />
-              Latest Tips from Ojochegbe
+              Latest Tips from PassAm
             </h2>
             <Link href="/tips" className="flex items-center gap-0.5 text-xs font-semibold text-primary">
               See all <ChevronRight className="h-3 w-3" />
@@ -358,7 +358,7 @@ export default async function DashboardPage() {
           <div className="min-w-0 flex-1">
             <p className="font-bold text-sm">Got a topic that won&apos;t budge? 💡</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Demystify with Ojochegbe on WhatsApp — personal, fast, free.
+              Demystify with PassAm on WhatsApp — personal, fast, free.
             </p>
           </div>
           <ChevronRight className="h-4 w-4 shrink-0 text-[#25D366] transition-transform group-hover:translate-x-0.5" />
