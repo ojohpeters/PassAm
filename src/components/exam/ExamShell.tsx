@@ -84,6 +84,21 @@ export function ExamShell({ attemptId, questions, timeLimitSecs }: Props) {
     if (gi >= 0) goTo(gi)
   }
 
+  function handleSelectAnswer(questionId: string, optionId: string) {
+    const isFirstAnswer = !answers[questionId]
+    selectAnswer(questionId, optionId)
+    // Auto-advance to next question after a short delay on first selection
+    if (isFirstAnswer) {
+      const next = localIndex + 1
+      if (next < activeQuestions.length) {
+        setTimeout(() => {
+          const gi = questions.findIndex(q => q.id === activeQuestions[next].id)
+          if (gi >= 0) goTo(gi)
+        }, 600)
+      }
+    }
+  }
+
   const doSubmit = useCallback(async (timedOut = false) => {
     if (isSubmitting) return
     setSubmitting(true)
@@ -200,7 +215,7 @@ export function ExamShell({ attemptId, questions, timeLimitSecs }: Props) {
               localIndex={localIndex}
               totalInSubject={activeQuestions.length}
               globalTotal={questions.length}
-              onSelect={(optionId) => selectAnswer(currentQ.id, optionId)}
+              onSelect={(optionId) => handleSelectAnswer(currentQ.id, optionId)}
               onFlag={() => toggleFlag(currentQ.id)}
               onPrev={goLocalPrev}
               onNext={goLocalNext}
@@ -232,29 +247,13 @@ export function ExamShell({ attemptId, questions, timeLimitSecs }: Props) {
       </div>
 
       {/* ══ Mobile Bottom Nav ═══════════════════════════════════════════ */}
-      <div className="fixed bottom-0 left-0 right-0 z-20 flex h-14 shrink-0 items-center justify-between border-t bg-background/95 px-4 backdrop-blur-sm md:hidden">
-        <button
-          onClick={goLocalPrev}
-          disabled={localIndex === 0}
-          className="flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition-all active:scale-95 disabled:opacity-30"
-        >
-          ← Prev
-        </button>
-
+      <div className="fixed bottom-0 left-0 right-0 z-20 flex h-14 shrink-0 items-center justify-center border-t bg-background/95 backdrop-blur-sm md:hidden">
         <button
           onClick={() => setShowNavigator(true)}
-          className="flex items-center gap-2 rounded-xl border bg-muted/50 px-3 py-2 text-xs font-semibold"
+          className="flex items-center gap-2 rounded-xl border bg-muted/50 px-4 py-2 text-xs font-semibold"
         >
           <LayoutGrid className="h-3.5 w-3.5" />
-          {localIndex + 1}/{activeQuestions.length}
-        </button>
-
-        <button
-          onClick={goLocalNext}
-          disabled={localIndex === activeQuestions.length - 1}
-          className="flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition-all active:scale-95 disabled:opacity-30"
-        >
-          Next →
+          All Questions · {answeredCount}/{questions.length} answered
         </button>
       </div>
 

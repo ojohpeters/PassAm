@@ -133,8 +133,8 @@ export function QuestionCard({
         })}
       </div>
 
-      {/* ── Desktop prev/next ── */}
-      <div className="hidden md:flex items-center justify-between pt-2">
+      {/* ── Prev / Next ── */}
+      <div className="flex items-center justify-between pt-2">
         <button
           onClick={onPrev}
           disabled={!hasPrev}
