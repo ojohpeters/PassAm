@@ -17,6 +17,7 @@ import {
 } from "lucide-react"
 import type { StudyQuestion } from "@/types"
 import { Calculator } from "@/components/shared/Calculator"
+import { parseInline, InlineText } from "@/lib/parseInline"
 
 type Props = {
   questions: StudyQuestion[]
@@ -296,7 +297,7 @@ export function StudyShell({ questions, durationMins }: Props) {
           {/* Question text */}
           <div className="rounded-2xl border bg-muted/20 p-5">
             <p className="text-base leading-relaxed font-medium md:text-lg">
-              {currentQuestion.text}
+              {parseInline(currentQuestion.text)}
             </p>
           </div>
 
@@ -346,9 +347,10 @@ export function StudyShell({ questions, durationMins }: Props) {
                       {option.label}
                     </div>
 
-                    <p className="flex-1 pt-0.5 text-sm font-medium leading-relaxed">
-                      {option.text}
-                    </p>
+                    <InlineText
+                      text={option.text}
+                      className="flex-1 pt-0.5 text-sm font-medium leading-relaxed"
+                    />
 
                     {/* Status icon */}
                     {wasAnswered && isCorrect && (

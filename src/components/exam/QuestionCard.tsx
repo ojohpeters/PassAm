@@ -3,6 +3,7 @@
 import { cn } from "@/lib/utils"
 import { Flag, ChevronLeft, ChevronRight } from "lucide-react"
 import type { QuestionWithOptions } from "@/types"
+import { parseInline, InlineText } from "@/lib/parseInline"
 
 // Detect and split Roman numeral list items embedded in question text.
 // e.g. "...organs: I. Liver II. Kidney III. Stomach Which..." →
@@ -26,18 +27,18 @@ function parseRomanList(text: string): { intro: string; items: string[] } | null
 function QuestionText({ text }: { text: string }) {
   const parsed = parseRomanList(text)
   if (!parsed) {
-    return <p className="text-base leading-relaxed md:text-lg">{text}</p>
+    return <p className="text-base leading-relaxed md:text-lg">{parseInline(text)}</p>
   }
   return (
     <div className="space-y-2 text-base leading-relaxed md:text-lg">
-      {parsed.intro && <p>{parsed.intro}</p>}
+      {parsed.intro && <p>{parseInline(parsed.intro)}</p>}
       <div className="space-y-1 pl-1">
         {parsed.items.map((item, i) => (
           <p key={i} className="flex gap-2">
             <span className="shrink-0 font-semibold text-primary/80">
               {item.match(/^([IVX]+\.)/)?.[1]}
             </span>
-            <span>{item.replace(/^[IVX]+\.\s*/, "")}</span>
+            <span>{parseInline(item.replace(/^[IVX]+\.\s*/, ""))}</span>
           </p>
         ))}
       </div>
@@ -163,12 +164,13 @@ export function QuestionCard({
               )}>
                 {opt.label}
               </span>
-              <span className={cn(
-                "flex-1 text-sm leading-relaxed md:text-base",
-                isSelected ? "font-semibold" : "font-medium"
-              )}>
-                {opt.text}
-              </span>
+              <InlineText
+                text={opt.text}
+                className={cn(
+                  "flex-1 text-sm leading-relaxed md:text-base",
+                  isSelected ? "font-semibold" : "font-medium"
+                )}
+              />
             </button>
           )
         })}
