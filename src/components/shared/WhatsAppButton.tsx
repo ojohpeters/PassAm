@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { usePathname } from "next/navigation"
 
 const WA_URL =
   "https://wa.me/2348139479853?text=Hi%2C+I%27m+a+PrepIQ+student.+I%27m+stuck+on+a+topic+and+need+help+%F0%9F%93%9A"
@@ -12,6 +13,7 @@ const MESSAGES = [
 ]
 
 export function WhatsAppButton() {
+  const pathname = usePathname()
   const [showTip, setShowTip] = useState(false)
   const [dismissed, setDismissed] = useState(false)
   const [msgIndex, setMsgIndex] = useState(0)
@@ -49,6 +51,9 @@ export function WhatsAppButton() {
   }
 
   const msg = MESSAGES[msgIndex]
+
+  const isSession = pathname.includes("/session")
+  if (isSession) return null
 
   return (
     <div className="fixed bottom-24 right-4 z-50 md:bottom-6 md:right-6">

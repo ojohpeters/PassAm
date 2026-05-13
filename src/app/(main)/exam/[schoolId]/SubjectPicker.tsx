@@ -87,16 +87,18 @@ export function SubjectPicker({
     let subjectIds: string[]
     let questionCount: number
 
+    let perSubjectCounts: Record<string, number> | undefined
     if (isAdminConfigured) {
       subjectIds = requiredSubjectIds
       questionCount = adminTotalQuestions
+      perSubjectCounts = adminSubjectCounts
     } else {
       if (selected.size < 1) { setLoading(false); return }
       subjectIds = Array.from(selected)
       questionCount = totalQuestions
     }
 
-    const result = await startExam(school.id, subjectIds, questionCount)
+    const result = await startExam(school.id, subjectIds, questionCount, perSubjectCounts)
     if (!result.success) {
       const msg =
         result.error === "INSUFFICIENT_QUESTIONS" ? "Not enough questions for one of the subjects. Try adjusting your selection." :

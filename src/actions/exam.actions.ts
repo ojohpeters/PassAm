@@ -47,7 +47,8 @@ function shuffleWithPriority<T extends { id: string }>(
 export async function startExam(
   schoolId: string,
   subjectIds: string[],
-  totalQuestions = 10
+  totalQuestions = 10,
+  perSubjectCounts?: Record<string, number>
 ): Promise<ActionResult<{ attemptId: string; questions: QuestionWithOptions[]; timeLimitSecs: number }>> {
   const user = await getAppUser()
   if (!user) return { success: false, error: "UNAUTHORIZED" }
@@ -72,14 +73,13 @@ export async function startExam(
     .single()
 
   const totalTarget = clampedTotal
-  const subjectCfg: Record<string, number> = (cfg?.subject_question_counts as Record<string, number>) ?? {}
   const timeLimitSecs = cfg?.duration_mins ? cfg.duration_mins * 60 : clampedTotal * SECS_PER_QUESTION
 
   const selected: QuestionWithOptions[] = []
 
   for (let i = 0; i < subjectIds.length; i++) {
     const subjectId = subjectIds[i]
-    const idealPerSubject = subjectCfg[subjectId] ?? Math.floor(totalTarget / subjectIds.length)
+    const idealPerSubject = perSubjectCounts?.[subjectId] ?? Math.floor(totalTarget / subjectIds.length)
 
     const { data: pool } = await admin
       .from("questions")
