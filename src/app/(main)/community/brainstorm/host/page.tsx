@@ -2,7 +2,7 @@ import { getAppUser } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import {
   isBrainstormHost,
-  getOrCreateTodaySession,
+  getOrCreateTodayHostSession,
   getCurrentQuestion,
   getBrainstormSubjects,
   getSessionLeaderboard,
@@ -19,7 +19,7 @@ export default async function BrainstormHostPage() {
   const isHost = await isBrainstormHost()
   if (!isHost) redirect("/community/brainstorm")
 
-  const sessionRes = await getOrCreateTodaySession()
+  const sessionRes = await getOrCreateTodayHostSession()
   if (!sessionRes.success) redirect("/community/brainstorm")
 
   const session = sessionRes.data

@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useEffect, useTransition, useCallback } from "react"
+import { useState, useEffect, useTransition, useCallback, useRef } from "react"
 import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 import {
-  Radio, Square, ChevronLeft, Search, Loader2, Zap,
+  Radio, Square, ChevronLeft, ChevronRight, Search, Loader2, Zap,
   CheckCircle2, XCircle, Trophy, Users, BookOpen,
 } from "lucide-react"
 import {
@@ -16,17 +16,24 @@ import {
 import type { PushedQuestion, LeaderboardEntry, GeneralQuestion } from "@/actions/brainstorm.actions"
 import { InlineText } from "@/lib/parseInline"
 
-type Session = { id: string; session_date: string; title: string | null; is_live?: boolean }
+type Session = { id: string; session_date: string; title: string | null; is_live: boolean }
 type Subject = { id: string; name: string }
-type Answer = { id: string; is_correct: boolean; points_awarded: number; answered_at: string; user: { name: string; avatar_url: string | null } }
+type Answer = {
+  id: string; is_correct: boolean; points_awarded: number; answered_at: string
+  user: { name: string; avatar_url: string | null }
+}
 
-const PER_PAGE = 15
+const BATCH = 20
 const MEDAL = ["🥇", "🥈", "🥉"]
+const OPTION_LABELS = ["A", "B", "C", "D", "E"]
 
 function Avatar({ name, url }: { name: string; url: string | null }) {
   return (
     <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-[11px] font-black text-white">
-      {url ? <img src={url} alt={name} className="h-full w-full object-cover" /> : name.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase()}
+      {url
+        ? <img src={url} alt={name} className="h-full w-full object-cover" />
+        : name.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase()
+      }
     </div>
   )
 }
@@ -47,52 +54,75 @@ export function HostPanel({
 }) {
   const [isPending, startTransition] = useTransition()
 
-  const [isLive, setIsLive] = useState(initialSession.is_live ?? false)
+  const [isLive, setIsLive] = useState(initialSession.is_live)
   const [currentQuestion, setCurrentQuestion] = useState<PushedQuestion | null>(initialQuestion)
   const [leaderboard, setLeaderboard] = useState(initialLeaderboard)
   const [answers, setAnswers] = useState(initialAnswers)
 
+  // Keep a ref to currentQuestion so the stable realtime channel can see the latest value
+  const currentQuestionRef = useRef(currentQuestion)
+  useEffect(() => { currentQuestionRef.current = currentQuestion }, [currentQuestion])
+
   // ── Subject selection ──────────────────────────────────────────────────────
-  // Pre-select the subject of the current question if there is one
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(() => {
     if (initialQuestion) {
-      const subj = subjects.find(s => s.id === initialQuestion.question.subject.id)
-      return subj ?? null
+      return subjects.find(s => s.id === initialQuestion.question.subject.id) ?? null
     }
     return null
   })
 
-  // ── Question browser ───────────────────────────────────────────────────────
+  // ── Question navigator ─────────────────────────────────────────────────────
+  // We load BATCH questions at a time, display one at a time
   const [search, setSearch] = useState("")
-  const [questions, setQuestions] = useState<GeneralQuestion[]>([])
+  const [batch, setBatch] = useState<GeneralQuestion[]>([])
+  const [batchPage, setBatchPage] = useState(1)      // which page of BATCH was fetched
+  const [totalQ, setTotalQ] = useState(0)            // total questions for this subject
+  const [localIdx, setLocalIdx] = useState(0)        // index within current batch
   const [loadingQ, setLoadingQ] = useState(false)
-  const [page, setPage] = useState(1)
-  const [total, setTotal] = useState(0)
 
-  const fetchQuestions = useCallback(async (subjectId: string, q: string, p: number) => {
+  const fetchBatch = useCallback(async (subjectId: string, q: string, bPage: number, goToLast = false) => {
     setLoadingQ(true)
-    const res = await getBrainstormQuestions(subjectId, q || undefined, p, PER_PAGE)
-    setQuestions(res.questions)
-    setTotal(res.total)
-    setPage(p)
+    const res = await getBrainstormQuestions(subjectId, q || undefined, bPage, BATCH)
+    setBatch(res.questions)
+    setTotalQ(res.total)
+    setBatchPage(bPage)
+    setLocalIdx(goToLast ? Math.max(0, res.questions.length - 1) : 0)
     setLoadingQ(false)
   }, [])
 
+  // Load first batch when subject or search changes
   useEffect(() => {
     if (selectedSubject) {
-      fetchQuestions(selectedSubject.id, search, 1)
+      const t = setTimeout(() => fetchBatch(selectedSubject.id, search, 1, false), search ? 300 : 0)
+      return () => clearTimeout(t)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSubject?.id, fetchQuestions])
+  }, [selectedSubject?.id, search, fetchBatch])
 
-  // Debounce search
-  useEffect(() => {
-    if (!selectedSubject) return
-    const t = setTimeout(() => fetchQuestions(selectedSubject.id, search, 1), 300)
-    return () => clearTimeout(t)
-  }, [search, selectedSubject, fetchQuestions])
+  const globalIndex = (batchPage - 1) * BATCH + localIdx   // 0-based position overall
+  const currentQ = batch[localIdx] ?? null
 
-  // ── Realtime ───────────────────────────────────────────────────────────────
+  function handlePrev() {
+    if (loadingQ) return
+    if (localIdx > 0) {
+      setLocalIdx(localIdx - 1)
+    } else if (batchPage > 1 && selectedSubject) {
+      // Go to last question of previous batch
+      fetchBatch(selectedSubject.id, search, batchPage - 1, true)
+    }
+  }
+
+  function handleNext() {
+    if (loadingQ) return
+    if (localIdx < batch.length - 1) {
+      setLocalIdx(localIdx + 1)
+    } else if (globalIndex + 1 < totalQ && selectedSubject) {
+      // Load next batch
+      fetchBatch(selectedSubject.id, search, batchPage + 1, false)
+    }
+  }
+
+  // ── Realtime — stable channel, reads currentQuestion via ref ───────────────
   const refreshLeaderboard = useCallback(async () => {
     const lb = await getSessionLeaderboard(initialSession.id)
     setLeaderboard(lb)
@@ -106,21 +136,28 @@ export function HostPanel({
   useEffect(() => {
     const supabase = createClient()
     const channel = supabase
-      .channel(`host-${initialSession.id}`)
-      .on("postgres_changes",
+      .channel(`host-session-${initialSession.id}`)
+      .on(
+        "postgres_changes",
         { event: "INSERT", schema: "public", table: "brainstorm_answers" },
         async (payload) => {
+          // Always refresh the leaderboard
           await refreshLeaderboard()
-          if (currentQuestion && payload.new.pushed_question_id === currentQuestion.id) {
-            await refreshAnswers(currentQuestion.id)
+          // Only refresh answers feed if this answer is for the current question
+          const cq = currentQuestionRef.current
+          if (cq && (payload.new as { pushed_question_id: string }).pushed_question_id === cq.id) {
+            await refreshAnswers(cq.id)
           }
         }
       )
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [initialSession.id, currentQuestion?.id, refreshLeaderboard, refreshAnswers])
 
-  // ── Actions ────────────────────────────────────────────────────────────────
+    return () => { supabase.removeChannel(channel) }
+    // Intentionally NOT including currentQuestion in deps — use ref instead
+    // so the channel isn't torn down on every question change
+  }, [initialSession.id, refreshLeaderboard, refreshAnswers])
+
+  // ── Session actions ────────────────────────────────────────────────────────
   function handleToggleLive() {
     startTransition(async () => {
       if (isLive) {
@@ -137,10 +174,11 @@ export function HostPanel({
     })
   }
 
-  function handleBroadcast(question: GeneralQuestion) {
+  function handleBroadcast() {
+    if (!currentQ) return
     if (!isLive) { toast.error("Start the session first"); return }
     startTransition(async () => {
-      const res = await pushQuestion(initialSession.id, question.id)
+      const res = await pushQuestion(initialSession.id, currentQ.id)
       if (!res.success) {
         toast.error(res.error === "ALREADY_PUSHED" ? "Already used in this session" : "Failed to broadcast")
         return
@@ -154,16 +192,11 @@ export function HostPanel({
     })
   }
 
-  function handleSelectSubject(subject: Subject) {
-    setSelectedSubject(subject)
-    setSearch("")
-    setQuestions([])
-    setPage(1)
-  }
-
-  // ── Shared header ──────────────────────────────────────────────────────────
+  // ── Header ─────────────────────────────────────────────────────────────────
   const sessionDate = new Date(initialSession.session_date + "T00:00:00")
     .toLocaleDateString("en-NG", { weekday: "short", month: "short", day: "numeric" })
+
+  const isCurrentQ = currentQuestion?.question.id === currentQ?.id
 
   return (
     <div className="min-h-full bg-background pb-16">
@@ -174,7 +207,9 @@ export function HostPanel({
           <div>
             <div className="flex items-center gap-2 mb-0.5">
               <Radio className="h-3.5 w-3.5 opacity-80" />
-              <span className="text-xs font-bold uppercase tracking-widest opacity-80">Host Panel · {sessionDate}</span>
+              <span className="text-xs font-bold uppercase tracking-widest opacity-80">
+                Host Panel · {sessionDate}
+              </span>
             </div>
             {selectedSubject && (
               <p className="text-lg font-black tracking-tight">{selectedSubject.name}</p>
@@ -190,14 +225,17 @@ export function HostPanel({
                 : "bg-white text-orange-600 shadow-lg hover:shadow-xl"
             )}
           >
-            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : isLive ? <Square className="h-4 w-4" /> : <Radio className="h-4 w-4" />}
+            {isPending
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : isLive ? <Square className="h-4 w-4" /> : <Radio className="h-4 w-4" />
+            }
             {isLive ? "End Session" : "Go Live"}
           </button>
         </div>
         {isLive && (
           <div className="mx-auto max-w-5xl mt-2 flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold backdrop-blur-sm">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
-            Session is live — students see each question the moment you broadcast it
+            Live — students see questions the moment you push them
           </div>
         )}
       </div>
@@ -210,23 +248,20 @@ export function HostPanel({
             <div className="flex items-center gap-2">
               <BookOpen className="h-4 w-4 text-muted-foreground" />
               <p className="font-bold">Pick today&apos;s subject</p>
-              <span className="text-xs text-muted-foreground">— one subject per session</span>
             </div>
 
             {subjects.length === 0 ? (
               <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed py-16 text-center">
                 <BookOpen className="h-8 w-8 text-muted-foreground/40" />
                 <p className="font-semibold text-muted-foreground">No subjects found</p>
-                <p className="text-sm text-muted-foreground max-w-xs">
-                  Questions need to be added to the database before you can host a session.
-                </p>
+                <p className="text-sm text-muted-foreground">Add questions to the database first.</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
                 {subjects.map((s) => (
                   <button
                     key={s.id}
-                    onClick={() => handleSelectSubject(s)}
+                    onClick={() => { setSelectedSubject(s); setSearch(""); setBatch([]); setLocalIdx(0) }}
                     className="group flex flex-col items-start gap-2 rounded-2xl border-2 border-border bg-background p-4 text-left transition-all hover:border-amber-400/60 hover:bg-amber-50/50 active:scale-[0.98] dark:hover:bg-amber-950/20"
                   >
                     <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/30">
@@ -240,131 +275,133 @@ export function HostPanel({
           </div>
 
         ) : (
-          /* ── Step 2: Question browser + right panel ── */
+          /* ── Step 2: Single-question browser + right panel ── */
           <div className="grid gap-5 md:grid-cols-[1fr_300px]">
 
-            {/* Left: question browser */}
+            {/* Left: question navigator */}
             <div className="space-y-4">
 
-              {/* Subject + back */}
-              <div className="flex items-center gap-3">
+              {/* Subject header + search */}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <button
-                  onClick={() => { setSelectedSubject(null); setSearch(""); setQuestions([]) }}
-                  className="flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted transition-colors"
+                  onClick={() => { setSelectedSubject(null); setBatch([]); setSearch("") }}
+                  className="flex w-fit items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted transition-colors"
                 >
                   <ChevronLeft className="h-3.5 w-3.5" /> Change subject
                 </button>
-                <span className="font-bold text-sm">{selectedSubject.name}</span>
-                {total > 0 && <span className="text-xs text-muted-foreground">{total} questions</span>}
-              </div>
-
-              {/* Search */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search questions…"
-                  className="w-full rounded-xl border bg-background py-2.5 pl-9 pr-3 text-sm outline-none ring-primary/40 focus:border-primary focus:ring-2"
-                />
-              </div>
-
-              {/* Question list */}
-              {loadingQ ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-5 w-5 animate-spin text-amber-500/60" />
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder={`Search in ${selectedSubject.name}…`}
+                    className="w-full rounded-xl border bg-background py-2 pl-9 pr-3 text-sm outline-none ring-primary/40 focus:border-primary focus:ring-2"
+                  />
                 </div>
-              ) : questions.length === 0 ? (
-                <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed py-12 text-center">
-                  <Search className="h-6 w-6 text-muted-foreground/40" />
+              </div>
+
+              {/* Counter */}
+              {totalQ > 0 && (
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span className="font-semibold">{selectedSubject.name}</span>
+                  <span>{globalIndex + 1} of {totalQ}</span>
+                </div>
+              )}
+
+              {/* Single question card */}
+              {loadingQ ? (
+                <div className="flex items-center justify-center rounded-2xl border bg-background py-20">
+                  <Loader2 className="h-6 w-6 animate-spin text-amber-500/60" />
+                </div>
+              ) : !currentQ ? (
+                <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed py-16 text-center">
+                  <Search className="h-7 w-7 text-muted-foreground/40" />
                   <p className="text-sm font-semibold text-muted-foreground">No questions found</p>
                   {search && <p className="text-xs text-muted-foreground">Try a different search term</p>}
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {questions.map((q) => {
-                    const isCurrentQ = currentQuestion?.question.id === q.id
-                    return (
-                      <div
-                        key={q.id}
-                        className={cn(
-                          "rounded-2xl border p-4 transition-colors",
-                          isCurrentQ ? "border-amber-400/60 bg-amber-50/50 dark:bg-amber-950/20" : "bg-background hover:bg-muted/30"
-                        )}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="flex-1 min-w-0 space-y-2">
-                            {q.year && (
-                              <span className="inline-flex rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">{q.year}</span>
-                            )}
-                            {isCurrentQ && (
-                              <span className="ml-1.5 inline-flex rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-400">Live</span>
-                            )}
-                            <p className="text-sm leading-snug">
-                              <InlineText text={q.text} />
-                            </p>
-                            {/* Show options preview */}
-                            <div className="space-y-1 pt-1">
-                              {q.options.sort((a, b) => a.label.localeCompare(b.label)).map((opt) => (
-                                <div key={opt.id} className={cn(
-                                  "flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs",
-                                  opt.is_correct
-                                    ? "bg-emerald-100 font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-                                    : "text-muted-foreground"
-                                )}>
-                                  <span className="font-black w-3.5 shrink-0">{opt.label}.</span>
-                                  <span className="flex-1 leading-snug"><InlineText text={opt.text} /></span>
-                                  {opt.is_correct && <CheckCircle2 className="h-3 w-3 shrink-0" />}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => handleBroadcast(q)}
-                            disabled={isPending || isCurrentQ}
-                            className={cn(
-                              "flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition-all active:scale-95 mt-1",
-                              isCurrentQ
-                                ? "bg-amber-100 text-amber-600 dark:bg-amber-950/30 cursor-default"
-                                : isLive
-                                ? "bg-primary text-primary-foreground hover:opacity-90"
-                                : "bg-muted text-muted-foreground cursor-not-allowed"
-                            )}
-                          >
-                            {isCurrentQ
-                              ? "Live"
-                              : isPending
-                              ? <Loader2 className="h-3 w-3 animate-spin" />
-                              : <><Zap className="h-3 w-3" /> Push</>
-                            }
-                          </button>
-                        </div>
+                <div className={cn(
+                  "rounded-2xl border bg-background p-5 space-y-4 transition-colors",
+                  isCurrentQ && "border-amber-400/60 bg-amber-50/40 dark:bg-amber-950/10"
+                )}>
+                  {/* Year badge + live tag */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {currentQ.year && (
+                      <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">{currentQ.year}</span>
+                    )}
+                    {isCurrentQ && (
+                      <span className="rounded-full bg-amber-500/20 px-2.5 py-0.5 text-xs font-bold text-amber-600 dark:text-amber-400">
+                        Currently Live
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Question text */}
+                  <p className="text-sm font-semibold leading-relaxed">
+                    <InlineText text={currentQ.text} />
+                  </p>
+
+                  {/* Options */}
+                  <div className="space-y-1.5">
+                    {currentQ.options.sort((a, b) => a.label.localeCompare(b.label)).map((opt, i) => (
+                      <div key={opt.id} className={cn(
+                        "flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm",
+                        opt.is_correct
+                          ? "bg-emerald-100 font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
+                          : "bg-muted/40 text-muted-foreground"
+                      )}>
+                        <span className="font-black w-5 shrink-0 text-xs">{OPTION_LABELS[i]}.</span>
+                        <span className="flex-1 leading-snug"><InlineText text={opt.text} /></span>
+                        {opt.is_correct && <CheckCircle2 className="h-4 w-4 shrink-0" />}
                       </div>
-                    )
-                  })}
+                    ))}
+                  </div>
+
+                  {/* Push button */}
+                  <button
+                    onClick={handleBroadcast}
+                    disabled={isPending || isCurrentQ || !isLive}
+                    className={cn(
+                      "flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-black transition-all active:scale-[0.98]",
+                      isCurrentQ
+                        ? "bg-amber-100 text-amber-600 dark:bg-amber-950/30 cursor-default"
+                        : isLive
+                        ? "bg-primary text-primary-foreground shadow-md shadow-primary/25 hover:opacity-90"
+                        : "bg-muted text-muted-foreground cursor-not-allowed"
+                    )}
+                  >
+                    {isPending
+                      ? <><Loader2 className="h-4 w-4 animate-spin" /> Broadcasting…</>
+                      : isCurrentQ
+                      ? "Currently Live"
+                      : isLive
+                      ? <><Zap className="h-4 w-4" /> Push to Students</>
+                      : "Go Live first"
+                    }
+                  </button>
                 </div>
               )}
 
-              {/* Pagination */}
-              {total > PER_PAGE && (
-                <div className="flex items-center justify-between pt-1 text-xs text-muted-foreground">
-                  <span>Page {page} of {Math.ceil(total / PER_PAGE)}</span>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => fetchQuestions(selectedSubject.id, search, page - 1)}
-                      disabled={page <= 1 || loadingQ}
-                      className="rounded-xl border px-3 py-1.5 font-semibold hover:bg-muted disabled:opacity-40 transition-colors"
-                    >
-                      Prev
-                    </button>
-                    <button
-                      onClick={() => fetchQuestions(selectedSubject.id, search, page + 1)}
-                      disabled={page >= Math.ceil(total / PER_PAGE) || loadingQ}
-                      className="rounded-xl border px-3 py-1.5 font-semibold hover:bg-muted disabled:opacity-40 transition-colors"
-                    >
-                      Next
-                    </button>
-                  </div>
+              {/* Prev / Next navigation */}
+              {totalQ > 1 && (
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    onClick={handlePrev}
+                    disabled={loadingQ || globalIndex === 0}
+                    className="flex flex-1 items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition-colors hover:bg-muted disabled:opacity-40"
+                  >
+                    <ChevronLeft className="h-4 w-4" /> Previous
+                  </button>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    {globalIndex + 1} / {totalQ}
+                  </span>
+                  <button
+                    onClick={handleNext}
+                    disabled={loadingQ || globalIndex + 1 >= totalQ}
+                    className="flex flex-1 items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition-colors hover:bg-muted disabled:opacity-40"
+                  >
+                    Next <ChevronRight className="h-4 w-4" />
+                  </button>
                 </div>
               )}
             </div>
@@ -372,7 +409,7 @@ export function HostPanel({
             {/* Right: current Q + answers + leaderboard */}
             <div className="space-y-4">
 
-              {/* Current question */}
+              {/* Broadcasting now */}
               <div className="rounded-2xl border bg-background p-4 space-y-3">
                 <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Broadcasting Now</p>
                 {currentQuestion ? (
@@ -381,36 +418,38 @@ export function HostPanel({
                       <InlineText text={currentQuestion.question.text} />
                     </p>
                     <div className="space-y-1.5">
-                      {currentQuestion.question.options.sort((a, b) => a.label.localeCompare(b.label)).map((opt) => (
-                        <div key={opt.id} className={cn(
-                          "flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold",
-                          opt.is_correct
-                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-                            : "bg-muted/50 text-muted-foreground"
-                        )}>
-                          <span className="font-black w-4 shrink-0">{opt.label}.</span>
-                          <span className="flex-1 leading-snug"><InlineText text={opt.text} /></span>
-                          {opt.is_correct && <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />}
-                        </div>
-                      ))}
+                      {currentQuestion.question.options
+                        .sort((a, b) => a.label.localeCompare(b.label))
+                        .map((opt) => (
+                          <div key={opt.id} className={cn(
+                            "flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold",
+                            opt.is_correct
+                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
+                              : "bg-muted/50 text-muted-foreground"
+                          )}>
+                            <span className="font-black w-4 shrink-0">{opt.label}.</span>
+                            <span className="flex-1 leading-snug"><InlineText text={opt.text} /></span>
+                            {opt.is_correct && <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />}
+                          </div>
+                        ))}
                     </div>
                   </>
                 ) : (
                   <p className="py-4 text-center text-xs text-muted-foreground">
-                    {isLive ? "Pick a question from the left and push it →" : "Go live first, then push a question."}
+                    {isLive ? "Navigate to a question and push it →" : "Go live, then push a question."}
                   </p>
                 )}
               </div>
 
-              {/* Live answers */}
+              {/* Live answers feed */}
               {currentQuestion && (
                 <div className="rounded-2xl border bg-background p-4 space-y-2">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Answers</p>
-                    <span className="text-xs text-muted-foreground">{answers.length}</span>
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Live Answers</p>
+                    <span className="text-xs text-muted-foreground">{answers.length} answered</span>
                   </div>
                   {answers.length === 0 ? (
-                    <p className="py-3 text-center text-xs text-muted-foreground">Waiting…</p>
+                    <p className="py-3 text-center text-xs text-muted-foreground">Waiting for answers…</p>
                   ) : (
                     <div className="space-y-1.5 max-h-44 overflow-y-auto">
                       {answers.map((a) => (
@@ -418,7 +457,9 @@ export function HostPanel({
                           <Avatar name={a.user.name} url={a.user.avatar_url} />
                           <span className="flex-1 text-xs font-semibold truncate">{a.user.name}</span>
                           {a.is_correct
-                            ? <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">+{a.points_awarded}pts</span>
+                            ? <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+                                +{a.points_awarded}pts
+                              </span>
                             : <XCircle className="h-3.5 w-3.5 text-rose-400 shrink-0" />
                           }
                         </div>
@@ -443,7 +484,7 @@ export function HostPanel({
                   <div className="space-y-1.5">
                     {leaderboard.slice(0, 10).map((e, i) => (
                       <div key={e.user_id} className="flex items-center gap-2">
-                        <span className="w-5 text-center text-sm">{MEDAL[i] ?? `${i + 1}.`}</span>
+                        <span className="w-5 shrink-0 text-center text-sm">{MEDAL[i] ?? `${i + 1}.`}</span>
                         <Avatar name={e.user.name} url={e.user.avatar_url} />
                         <span className="flex-1 text-xs font-semibold truncate">{e.user.name}</span>
                         <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
@@ -454,7 +495,6 @@ export function HostPanel({
                   </div>
                 )}
               </div>
-
             </div>
           </div>
         )}

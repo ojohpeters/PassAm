@@ -264,6 +264,41 @@ export async function isBrainstormHost(): Promise<boolean> {
   return !!data
 }
 
+// Host-specific session get-or-create: doesn't require log_attendant role,
+// and returns is_live so the panel restores live state after a refresh.
+export async function getOrCreateTodayHostSession(): Promise<ActionResult<{
+  id: string
+  session_date: string
+  title: string | null
+  is_live: boolean
+}>> {
+  const user = await getAppUser()
+  if (!user) return { success: false, error: "UNAUTHORIZED" }
+
+  const host = await isBrainstormHost()
+  if (!host) return { success: false, error: "FORBIDDEN" }
+
+  const admin = createAdminClient()
+  const today = new Date().toISOString().split("T")[0]
+
+  const { data: existing } = await admin
+    .from("brainstorm_sessions")
+    .select("id, session_date, title, is_live")
+    .eq("session_date", today)
+    .single()
+
+  if (existing) return { success: true, data: { ...existing, is_live: existing.is_live ?? false } }
+
+  const { data, error } = await admin
+    .from("brainstorm_sessions")
+    .insert({ session_date: today, created_by: user.id })
+    .select("id, session_date, title, is_live")
+    .single()
+
+  if (error || !data) return { success: false, error: "INTERNAL" }
+  return { success: true, data: { ...data, is_live: data.is_live ?? false } }
+}
+
 export type BrainstormHostRow = {
   id: string
   user_id: string
