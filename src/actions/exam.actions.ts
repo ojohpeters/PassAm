@@ -48,7 +48,8 @@ export async function startExam(
   schoolId: string,
   subjectIds: string[],
   totalQuestions = 10,
-  perSubjectCounts?: Record<string, number>
+  perSubjectCounts?: Record<string, number>,
+  studentDurationMins?: number
 ): Promise<ActionResult<{ attemptId: string; questions: QuestionWithOptions[]; timeLimitSecs: number }>> {
   const user = await getAppUser()
   if (!user) return { success: false, error: "UNAUTHORIZED" }
@@ -73,7 +74,11 @@ export async function startExam(
     .single()
 
   const totalTarget = clampedTotal
-  const timeLimitSecs = cfg?.duration_mins ? cfg.duration_mins * 60 : clampedTotal * SECS_PER_QUESTION
+  const timeLimitSecs = studentDurationMins
+    ? Math.min(3600, studentDurationMins * 60)
+    : cfg?.duration_mins
+    ? cfg.duration_mins * 60
+    : clampedTotal * SECS_PER_QUESTION
 
   const selected: QuestionWithOptions[] = []
 

@@ -11,6 +11,7 @@ import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { LayoutGrid, X, AlertTriangle, ShieldAlert, Eye } from "lucide-react"
 import type { QuestionWithOptions } from "@/types"
+import { Calculator } from "@/components/shared/Calculator"
 
 type SubjectGroup = { id: string; name: string; questions: QuestionWithOptions[] }
 
@@ -400,6 +401,8 @@ export function ExamShell({ attemptId, questions, timeLimitSecs }: Props) {
           </div>
         </>
       )}
+
+      <Calculator />
 
       {/* ══ Anti-Cheat Warning Overlay ═══════════════════════════════════ */}
       {tabWarning && (

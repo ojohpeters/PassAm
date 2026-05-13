@@ -36,6 +36,7 @@ const SCHOOL_COLORS: Record<string, string> = {
 }
 
 const Q_OPTIONS = [10, 20, 30, 40, 50]
+const TIME_OPTIONS = [20, 30, 45, 60]
 
 export function SubjectPicker({
   school,
@@ -65,6 +66,7 @@ export function SubjectPicker({
     new Set(englishSubject ? [englishSubject.id] : [])
   )
   const [totalQuestions, setTotalQuestions] = useState(10)
+  const [durationMins, setDurationMins] = useState(30)
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -98,7 +100,7 @@ export function SubjectPicker({
       questionCount = totalQuestions
     }
 
-    const result = await startExam(school.id, subjectIds, questionCount, perSubjectCounts)
+    const result = await startExam(school.id, subjectIds, questionCount, perSubjectCounts, isAdminConfigured ? undefined : durationMins)
     if (!result.success) {
       const msg =
         result.error === "INSUFFICIENT_QUESTIONS" ? "Not enough questions for one of the subjects. Try adjusting your selection." :
@@ -210,7 +212,6 @@ export function SubjectPicker({
   const selectedCount = selected.size
   const perSubject = selectedCount > 0 ? Math.floor(totalQuestions / selectedCount) : 0
   const canBegin = selectedCount >= 1
-  const timeMins = Math.round((totalQuestions * 90) / 60)
 
   return (
     <div className="min-h-full bg-background pb-12">
@@ -221,7 +222,7 @@ export function SubjectPicker({
           <div className="mt-4 flex flex-wrap gap-3">
             {[
               { icon: "📋", label: `${totalQuestions} questions` },
-              { icon: "⏱️", label: `${timeMins} minutes` },
+              { icon: "⏱️", label: `${durationMins} minutes` },
               { icon: "📚", label: `${subjects.length} subjects available` },
             ].map(({ icon, label }) => (
               <div key={label} className="flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold backdrop-blur-sm">
@@ -237,7 +238,7 @@ export function SubjectPicker({
         <div className="rounded-2xl border bg-background p-4 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Number of Questions</p>
-            <span className="text-xs text-muted-foreground">{timeMins} min · {perSubject > 0 ? `~${perSubject}/subject` : "select subjects"}</span>
+            <span className="text-xs text-muted-foreground">{perSubject > 0 ? `~${perSubject}/subject` : "select subjects"}</span>
           </div>
           <div className="grid grid-cols-5 gap-2">
             {Q_OPTIONS.map((n) => (
@@ -256,6 +257,33 @@ export function SubjectPicker({
             ))}
           </div>
           <p className="text-xs text-muted-foreground">Default is 10. Max is 50.</p>
+        </div>
+
+        {/* Time limit */}
+        <div className="rounded-2xl border bg-background p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Time Limit</p>
+            <span className="text-xs text-muted-foreground flex items-center gap-1">
+              <Clock className="h-3 w-3" /> {durationMins} min
+            </span>
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {TIME_OPTIONS.map((t) => (
+              <button
+                key={t}
+                onClick={() => setDurationMins(t)}
+                className={cn(
+                  "rounded-xl py-2.5 text-sm font-black transition-all active:scale-[0.96]",
+                  durationMins === t
+                    ? "bg-primary text-primary-foreground shadow-sm shadow-primary/30"
+                    : "border bg-muted/30 text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                )}
+              >
+                {t}m
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">Max 60 min — similar to actual POST-UTME.</p>
         </div>
 
         {availablePresets.length > 0 && (
@@ -345,7 +373,7 @@ export function SubjectPicker({
 
         <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
           {[
-            { icon: Clock, text: `${timeMins} min timer` },
+            { icon: Clock, text: `${durationMins} min timer` },
             { icon: LayoutGrid, text: `${totalQuestions} questions` },
           ].map(({ icon: Icon, text }) => (
             <span key={text} className="flex items-center gap-1">

@@ -16,6 +16,7 @@ import {
   XCircle,
 } from "lucide-react"
 import type { StudyQuestion } from "@/types"
+import { Calculator } from "@/components/shared/Calculator"
 
 type Props = {
   questions: StudyQuestion[]
@@ -414,6 +415,8 @@ export function StudyShell({ questions, durationMins }: Props) {
           )}
         </div>
       </div>
+
+      <Calculator />
 
       {/* ── End session modal ── */}
       {showEndModal && (
