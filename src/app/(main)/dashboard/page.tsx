@@ -2,12 +2,13 @@ import { getDashboardStats } from "@/actions/analytics.actions"
 import { getAttemptHistory } from "@/actions/exam.actions"
 import { getStudentRank } from "@/actions/leaderboard.actions"
 import { getLatestTips } from "@/actions/tips.actions"
+import { isBrainstormHost } from "@/actions/brainstorm.actions"
 import { getAppUser } from "@/lib/auth"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { formatDate, cn } from "@/lib/utils"
-import { BookOpen, TrendingUp, Flame, Trophy, ChevronRight, Globe, Lightbulb, ExternalLink } from "lucide-react"
+import { BookOpen, TrendingUp, Flame, Trophy, ChevronRight, Globe, Lightbulb, ExternalLink, Radio } from "lucide-react"
 import { NotificationBanner } from "@/components/dashboard/NotificationBanner"
 
 const SCHOOL_CFG: Record<string, { grad: string; abbrevColor: string }> = {
@@ -35,7 +36,7 @@ export default async function DashboardPage() {
   const admin = createAdminClient()
   const { data: schools } = await admin.from("schools").select("id, name, abbreviation").order("name")
 
-  const [stats, history, rank, { data: unreadNotifs }, latestTips] = await Promise.all([
+  const [stats, history, rank, { data: unreadNotifs }, latestTips, isHost] = await Promise.all([
     getDashboardStats(),
     getAttemptHistory(1, 5),
     getStudentRank(),
@@ -47,6 +48,7 @@ export default async function DashboardPage() {
       .order("created_at", { ascending: false })
       .limit(3),
     getLatestTips(2),
+    isBrainstormHost(),
   ])
 
   const firstName = user.name.split(" ")[0]
@@ -86,6 +88,25 @@ export default async function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* ── Brainstorm Host widget ── */}
+      {isHost && (
+        <div className="dash-in" style={{ animationDelay: "60ms" }}>
+          <Link
+            href="/community/brainstorm/host"
+            className="group flex items-center gap-4 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 p-4 shadow-lg shadow-amber-500/20 transition-all active:scale-[0.98]"
+          >
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/20">
+              <Radio className="h-5 w-5 text-white" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-bold text-white text-sm">You&apos;re a Brainstorm Host</p>
+              <p className="text-xs text-white/70">Open your host panel to run today&apos;s session</p>
+            </div>
+            <ChevronRight className="h-4 w-4 shrink-0 text-white/80 transition-transform group-hover:translate-x-0.5" />
+          </Link>
+        </div>
+      )}
 
       {/* ── Daily Quiz CTA ── */}
       {stats?.dailyQuizReady && (

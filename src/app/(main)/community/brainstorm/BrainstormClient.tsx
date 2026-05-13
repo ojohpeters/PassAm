@@ -1,484 +1,375 @@
 "use client"
 
-import { useState, useTransition, useCallback, useEffect, useRef } from "react"
+import { useState, useEffect, useTransition, useCallback } from "react"
 import { cn } from "@/lib/utils"
-import type { AttendanceRow } from "@/actions/brainstorm.actions"
+import { createClient } from "@/lib/supabase/client"
+import { toast } from "sonner"
+import { Radio, Trophy, Loader2, Zap, CheckCircle2, XCircle, Clock } from "lucide-react"
 import {
-  addStudentToSession,
-  updateFirstAnswers,
-  removeFromSession,
-  searchStudents,
-  getSessionAttendance,
-  getSession,
+  getCurrentQuestion,
+  getSessionLeaderboard,
+  submitBrainstormAnswer,
+  getLiveSession,
+  getUserAnswerForPushedQuestion,
 } from "@/actions/brainstorm.actions"
-import {
-  Calendar,
-  ChevronLeft,
-  ChevronRight,
-  Loader2,
-  Minus,
-  Plus,
-  Search,
-  Trash2,
-  UserPlus,
-  X,
-} from "lucide-react"
+import type { PushedQuestion, LeaderboardEntry, MyBrainstormAnswer } from "@/actions/brainstorm.actions"
+import { InlineText } from "@/lib/parseInline"
 
-const PER_PAGE = 15
+type LiveSession = { id: string; session_date: string; title: string | null; is_live: boolean; created_by: string | null }
 
-function initials(name: string) {
-  return name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase()
+const RANK_STYLES: Record<number, { bg: string; border: string; medal: string }> = {
+  1: { bg: "bg-yellow-50 dark:bg-yellow-900/20", border: "border-l-4 border-l-yellow-400", medal: "🥇" },
+  2: { bg: "bg-slate-50 dark:bg-slate-900/30",   border: "border-l-4 border-l-slate-400",  medal: "🥈" },
+  3: { bg: "bg-orange-50 dark:bg-orange-900/20", border: "border-l-4 border-l-orange-400", medal: "🥉" },
 }
 
-function formatDate(dateStr: string) {
-  const today = new Date().toISOString().split("T")[0]
-  if (dateStr === today) return "Today"
-  const d = new Date(dateStr + "T00:00:00")
-  return d.toLocaleDateString("en-NG", { weekday: "short", month: "short", day: "numeric" })
-}
+const OPTION_LABELS = ["A", "B", "C", "D", "E"]
 
 function Avatar({ name, url }: { name: string; url: string | null }) {
   return (
-    <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-xs font-black text-white shadow-sm">
-      {url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={url} alt={name} className="h-full w-full object-cover" />
-      ) : (
-        initials(name)
-      )}
+    <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-xs font-black text-white">
+      {url
+        ? <img src={url} alt={name} className="h-full w-full object-cover" />
+        : name.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase()
+      }
     </div>
   )
 }
 
-const RANK_STYLES: Record<number, { bg: string; border: string; medal: string; scoreBg: string; scoreText: string }> = {
-  1: { bg: "bg-yellow-50 dark:bg-yellow-900/20",   border: "border-l-4 border-l-yellow-400", medal: "🥇", scoreBg: "bg-yellow-200 dark:bg-yellow-800", scoreText: "text-yellow-900 dark:text-yellow-100" },
-  2: { bg: "bg-slate-50 dark:bg-slate-900/30",     border: "border-l-4 border-l-slate-400",  medal: "🥈", scoreBg: "bg-slate-200 dark:bg-slate-700",  scoreText: "text-slate-800 dark:text-slate-100"  },
-  3: { bg: "bg-orange-50 dark:bg-orange-900/20",   border: "border-l-4 border-l-orange-400", medal: "🥉", scoreBg: "bg-orange-200 dark:bg-orange-800", scoreText: "text-orange-900 dark:text-orange-100" },
-}
-
-type SearchStudent = {
-  id: string
-  name: string
-  avatar_url: string | null
-  target_school: string | null
+function PointsBadge({ points }: { points: number }) {
+  if (points === 10) return <span className="rounded-full bg-yellow-400/20 px-2.5 py-0.5 text-[11px] font-black text-yellow-700 dark:text-yellow-300">🥇 +10 pts</span>
+  if (points === 5)  return <span className="rounded-full bg-slate-200/80 px-2.5 py-0.5 text-[11px] font-black text-slate-700 dark:bg-slate-700 dark:text-slate-200">🥈 +5 pts</span>
+  if (points === 2)  return <span className="rounded-full bg-orange-100 px-2.5 py-0.5 text-[11px] font-black text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">🥉 +2 pts</span>
+  return <span className="rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground">0 pts</span>
 }
 
 export function BrainstormClient({
-  canLog,
-  sessionId: initialSessionId,
-  sessionDate: initialSessionDate,
-  initialAttendance,
-  allDates,
-  currentUserId,
+  userId,
+  initialSession,
+  initialQuestion,
+  initialLeaderboard,
+  initialMyAnswer,
 }: {
-  canLog: boolean
-  sessionId: string | null
-  sessionDate: string | null
-  initialAttendance: AttendanceRow[]
-  allDates: string[]
-  currentUserId: string
+  userId: string
+  initialSession: LiveSession | null
+  initialQuestion: PushedQuestion | null
+  initialLeaderboard: LeaderboardEntry[]
+  initialMyAnswer: MyBrainstormAnswer | null
 }) {
-  const today = new Date().toISOString().split("T")[0]
+  const [session, setSession] = useState<LiveSession | null>(initialSession)
+  const [currentQuestion, setCurrentQuestion] = useState<PushedQuestion | null>(initialQuestion)
+  const [leaderboard, setLeaderboard] = useState(initialLeaderboard)
+  const [myAnswer, setMyAnswer] = useState<MyBrainstormAnswer | null>(initialMyAnswer)
+  const [selectedOption, setSelectedOption] = useState<string | null>(null)
+  const [isPending, startTransition] = useTransition()
 
-  const [selectedDate, setSelectedDate] = useState(
-    initialSessionDate ?? (allDates[0] ?? null)
-  )
-  const [sessionId, setSessionId] = useState(initialSessionId)
-  const [attendance, setAttendance] = useState<AttendanceRow[]>(
-    [...initialAttendance].sort((a, b) => b.first_answers - a.first_answers)
-  )
-  const [loadingDate, startDateTransition] = useTransition()
-  const [, startMutation] = useTransition()
-
-  // Add student modal
-  const [addOpen, setAddOpen] = useState(false)
-  const [query, setQuery] = useState("")
-  const [results, setResults] = useState<SearchStudent[]>([])
-  const [total, setTotal] = useState(0)
-  const [page, setPage] = useState(1)
-  const [searching, setSearching] = useState(false)
-  const [addingId, setAddingId] = useState<string | null>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // ── Date navigation ──────────────────────────────────────────────────────────
-
-  function handleDateChange(date: string) {
-    if (date === selectedDate || loadingDate) return
-    setSelectedDate(date)
-    startDateTransition(async () => {
-      const session = await getSession(date)
-      if (!session) {
-        setSessionId(null)
-        setAttendance([])
-        return
-      }
-      setSessionId(session.id)
-      const rows = await getSessionAttendance(session.id)
-      setAttendance([...rows].sort((a, b) => b.first_answers - a.first_answers))
-    })
-  }
-
-  // ── Student search ───────────────────────────────────────────────────────────
-
-  const doSearch = useCallback(async (q: string, p: number) => {
-    setSearching(true)
-    const res = await searchStudents(q, p, PER_PAGE)
-    setResults(res.students as SearchStudent[])
-    setTotal(res.total)
-    setPage(p)
-    setSearching(false)
+  const refreshLeaderboard = useCallback(async (sessionId: string) => {
+    const lb = await getSessionLeaderboard(sessionId)
+    setLeaderboard(lb)
   }, [])
 
+  // Realtime: watch for new questions, new answers, and session state changes
   useEffect(() => {
-    if (!addOpen) return
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => doSearch(query, 1), 300)
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
-  }, [query, addOpen, doSearch])
+    const supabase = createClient()
+    const sessionId = session?.id
 
-  useEffect(() => {
-    if (addOpen) {
-      setQuery("")
-      setPage(1)
-      doSearch("", 1)
-    }
-  }, [addOpen, doSearch])
-
-  // ── Mutations ────────────────────────────────────────────────────────────────
-
-  async function handleAdd(studentId: string) {
-    if (!sessionId) return
-    setAddingId(studentId)
-    const res = await addStudentToSession(sessionId, studentId)
-    setAddingId(null)
-    if (res.success) {
-      setAttendance((prev) =>
-        [...prev, res.data].sort((a, b) => b.first_answers - a.first_answers)
+    const channel = supabase
+      .channel("brainstorm-student")
+      // New question pushed
+      .on("postgres_changes",
+        { event: "INSERT", schema: "public", table: "brainstorm_pushed_questions" },
+        async (payload) => {
+          const sid = (payload.new as { session_id: string }).session_id
+          const effectiveSessionId = sessionId ?? sid
+          const q = await getCurrentQuestion(effectiveSessionId)
+          if (q) {
+            setCurrentQuestion(q)
+            setMyAnswer(null)
+            setSelectedOption(null)
+          }
+        }
       )
+      // New answer submitted (by anyone) — refresh leaderboard
+      .on("postgres_changes",
+        { event: "INSERT", schema: "public", table: "brainstorm_answers" },
+        async () => {
+          if (sessionId) await refreshLeaderboard(sessionId)
+        }
+      )
+      // Session went live or ended
+      .on("postgres_changes",
+        { event: "UPDATE", schema: "public", table: "brainstorm_sessions" },
+        async (payload) => {
+          const updated = payload.new as { id: string; is_live: boolean; ended_at: string | null; session_date: string; title: string | null; created_by: string }
+          if (updated.is_live) {
+            setSession(updated)
+            // Fetch current question if any
+            const q = await getCurrentQuestion(updated.id)
+            setCurrentQuestion(q)
+            setMyAnswer(null)
+            setSelectedOption(null)
+            await refreshLeaderboard(updated.id)
+          } else {
+            // Session ended
+            setSession(prev => prev ? { ...prev, is_live: false } : prev)
+          }
+        }
+      )
+      .subscribe()
+
+    // Also poll for a live session if none currently (host may go live after page load)
+    let pollInterval: ReturnType<typeof setInterval> | null = null
+    if (!session?.is_live) {
+      pollInterval = setInterval(async () => {
+        const live = await getLiveSession()
+        if (live) {
+          setSession(live)
+          const q = await getCurrentQuestion(live.id)
+          setCurrentQuestion(q)
+          const [lb] = await Promise.all([getSessionLeaderboard(live.id)])
+          setLeaderboard(lb)
+          if (pollInterval) clearInterval(pollInterval)
+        }
+      }, 8000)
     }
-  }
 
-  function handleUpdateCount(row: AttendanceRow, delta: number) {
-    const newCount = Math.max(0, row.first_answers + delta)
-    setAttendance((prev) =>
-      prev.map((r) => (r.id === row.id ? { ...r, first_answers: newCount } : r))
-        .sort((a, b) => b.first_answers - a.first_answers)
-    )
-    startMutation(async () => {
-      await updateFirstAnswers(row.id, newCount)
+    return () => {
+      supabase.removeChannel(channel)
+      if (pollInterval) clearInterval(pollInterval)
+    }
+  }, [session?.id, session?.is_live, refreshLeaderboard])
+
+  function handleSubmit(optionId: string) {
+    if (myAnswer || isPending) return
+    setSelectedOption(optionId)
+    startTransition(async () => {
+      if (!currentQuestion) return
+      const res = await submitBrainstormAnswer(currentQuestion.id, optionId)
+      if (!res.success) {
+        if (res.error === "ALREADY_ANSWERED") {
+          // Fetch their answer in case of race condition
+          const existing = await getUserAnswerForPushedQuestion(currentQuestion.id)
+          setMyAnswer(existing)
+        } else {
+          toast.error("Failed to submit — try again")
+          setSelectedOption(null)
+        }
+        return
+      }
+      setMyAnswer({
+        id: "pending",
+        selected_option_id: optionId,
+        is_correct: res.data.isCorrect,
+        points_awarded: res.data.pointsAwarded,
+      })
+      if (res.data.isCorrect) {
+        toast.success(res.data.pointsAwarded > 0 ? `Correct! +${res.data.pointsAwarded} pts` : "Correct! (no points — others answered first)")
+      } else {
+        toast.error("Wrong answer")
+      }
     })
   }
 
-  function handleRemove(attendanceId: string) {
-    setAttendance((prev) => prev.filter((r) => r.id !== attendanceId))
-    startMutation(async () => {
-      await removeFromSession(attendanceId)
-    })
-  }
-
-  const addedIds = new Set(attendance.map((r) => r.student_id))
-  const isToday = selectedDate === today
-
-  // ── Render ───────────────────────────────────────────────────────────────────
-
-  return (
-    <div className="space-y-5">
-
-      {/* Date selector */}
-      {allDates.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-          {allDates.map((date) => (
-            <button
-              key={date}
-              onClick={() => handleDateChange(date)}
-              disabled={loadingDate}
-              className={cn(
-                "flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-semibold transition-all",
-                selectedDate === date
-                  ? "bg-amber-500 text-white shadow-sm shadow-amber-500/30"
-                  : "border bg-background text-muted-foreground hover:border-amber-400/50 hover:text-foreground"
-              )}
-            >
-              <Calendar className="h-3 w-3" />
-              {formatDate(date)}
-            </button>
-          ))}
+  // ── No live session ─────────────────────────────────────────────────────────
+  if (!session?.is_live) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 px-5 py-16 text-center">
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-100 dark:bg-amber-900/30">
+          <Clock className="h-8 w-8 text-amber-500" />
         </div>
-      )}
-
-      {/* Loading */}
-      {loadingDate && (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-amber-500/50" />
-        </div>
-      )}
-
-      {/* No session */}
-      {!loadingDate && !sessionId && (
-        <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed py-16 text-center">
-          <span className="text-4xl">📭</span>
-          <h3 className="mt-3 font-bold">No session recorded</h3>
-          <p className="mt-1.5 max-w-xs text-sm text-muted-foreground">
-            {canLog
-              ? "A session will be created when you add the first student."
-              : "No brainstorm session was logged for this date."}
+        <div>
+          <h2 className="font-black text-lg">No live session right now</h2>
+          <p className="mt-1 text-sm text-muted-foreground max-w-xs">
+            When a host starts a session, questions will appear here instantly — no refresh needed.
           </p>
         </div>
-      )}
+        <div className="mt-2 flex items-center gap-2 rounded-xl border border-dashed border-amber-300 bg-amber-50 px-4 py-2.5 dark:bg-amber-950/20">
+          <Radio className="h-4 w-4 text-amber-500 animate-pulse" />
+          <span className="text-sm font-semibold text-amber-700 dark:text-amber-300">Waiting for host to go live…</span>
+        </div>
+      </div>
+    )
+  }
 
-      {/* Session content */}
-      {!loadingDate && sessionId && (
-        <div className="space-y-4">
+  const options = currentQuestion?.question.options ?? []
+  const answered = myAnswer !== null
 
-          {/* Attendant: add student */}
-          {canLog && isToday && (
-            <button
-              onClick={() => setAddOpen(true)}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-amber-300 py-3 text-sm font-bold text-amber-600 transition-all hover:bg-amber-50 active:scale-[0.99] dark:hover:bg-amber-950/20"
-            >
-              <UserPlus className="h-4 w-4" />
-              Add Student to Session
-            </button>
-          )}
+  return (
+    <div className="space-y-4 p-4 pb-8 md:p-6">
 
-          {/* Empty state */}
-          {attendance.length === 0 && (
-            <div className="flex flex-col items-center py-16 text-center">
-              <span className="text-4xl">🔥</span>
-              <h3 className="mt-3 font-bold">No participants yet</h3>
-              <p className="mt-1.5 text-sm text-muted-foreground">
-                {canLog && isToday
-                  ? "Use the button above to add students."
-                  : "No students were logged for this session."}
-              </p>
-            </div>
-          )}
+      {/* Session live badge */}
+      <div className="flex items-center gap-2">
+        <span className="flex items-center gap-1.5 rounded-full bg-rose-100 px-3 py-1 text-xs font-bold text-rose-600 dark:bg-rose-950/40 dark:text-rose-400">
+          <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />
+          LIVE
+        </span>
+        {session.title && (
+          <span className="text-sm font-semibold text-muted-foreground">{session.title}</span>
+        )}
+        <span className="ml-auto text-xs text-muted-foreground">
+          {leaderboard.length} participant{leaderboard.length !== 1 ? "s" : ""}
+        </span>
+      </div>
 
-          {/* Ranked list */}
-          {attendance.length > 0 && (
-            <div className="overflow-hidden rounded-2xl border bg-background">
-              {/* Header */}
-              <div className="flex items-center gap-3 border-b bg-muted/30 px-4 py-2.5">
-                <span className="w-8 text-center text-[10px] font-black uppercase tracking-wider text-muted-foreground">Rank</span>
-                <span className="flex-1 text-[10px] font-black uppercase tracking-wider text-muted-foreground">Student</span>
-                <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
-                  {canLog && isToday ? "1st Answers" : "Score"}
+      {/* Question card */}
+      {!currentQuestion ? (
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed bg-muted/20 py-12 text-center">
+          <Zap className="h-8 w-8 text-amber-400 animate-bounce" />
+          <p className="font-bold">Host is preparing the first question…</p>
+          <p className="text-sm text-muted-foreground">It&apos;ll appear here the moment they broadcast it.</p>
+        </div>
+      ) : (
+        <div className="rounded-2xl border bg-background shadow-sm">
+          {/* Question header */}
+          <div className="flex items-center gap-2 border-b px-4 py-3">
+            <span className="rounded-lg bg-primary/10 px-2.5 py-0.5 text-xs font-bold text-primary">
+              {currentQuestion.question.subject.name}
+            </span>
+            {currentQuestion.question.year && (
+              <span className="text-xs text-muted-foreground">{currentQuestion.question.year}</span>
+            )}
+            <span className="ml-auto text-xs font-semibold text-muted-foreground">
+              Q{currentQuestion.push_order}
+            </span>
+          </div>
+
+          {/* Question text */}
+          <div className="px-4 py-4">
+            <p className="font-semibold leading-relaxed">
+              <InlineText text={currentQuestion.question.text} />
+            </p>
+          </div>
+
+          {/* Options */}
+          <div className="space-y-2 px-4 pb-4">
+            {options.map((opt, i) => {
+              const isSelected = selectedOption === opt.id || myAnswer?.selected_option_id === opt.id
+              const isCorrect = opt.is_correct
+              const showResult = answered
+
+              let optStyle = "border bg-background hover:bg-muted/50 active:scale-[0.99]"
+              if (showResult) {
+                if (isCorrect) {
+                  optStyle = "border-2 border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30"
+                } else if (isSelected && !isCorrect) {
+                  optStyle = "border-2 border-rose-400 bg-rose-50 dark:bg-rose-950/30"
+                } else {
+                  optStyle = "border bg-muted/30 opacity-50"
+                }
+              } else if (isSelected) {
+                optStyle = "border-2 border-primary bg-primary/5"
+              }
+
+              return (
+                <button
+                  key={opt.id}
+                  onClick={() => handleSubmit(opt.id)}
+                  disabled={answered || isPending}
+                  className={cn(
+                    "flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left transition-all",
+                    optStyle,
+                    !answered && !isPending && "cursor-pointer"
+                  )}
+                >
+                  <span className={cn(
+                    "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs font-black transition-colors",
+                    showResult && isCorrect ? "bg-emerald-500 text-white" :
+                    showResult && isSelected && !isCorrect ? "bg-rose-400 text-white" :
+                    isSelected ? "bg-primary text-primary-foreground" :
+                    "bg-muted text-muted-foreground"
+                  )}>
+                    {OPTION_LABELS[i]}
+                  </span>
+                  <span className="flex-1 text-sm font-medium leading-snug">
+                    <InlineText text={opt.text} />
+                  </span>
+                  {showResult && isCorrect && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />}
+                  {showResult && isSelected && !isCorrect && <XCircle className="h-4 w-4 shrink-0 text-rose-400" />}
+                  {isPending && isSelected && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Result feedback */}
+          {myAnswer && (
+            <div className={cn(
+              "mx-4 mb-4 flex items-center justify-between gap-3 rounded-xl px-4 py-3",
+              myAnswer.is_correct
+                ? "bg-emerald-50 dark:bg-emerald-950/30"
+                : "bg-rose-50 dark:bg-rose-950/30"
+            )}>
+              <div className="flex items-center gap-2">
+                {myAnswer.is_correct
+                  ? <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                  : <XCircle className="h-5 w-5 text-rose-400" />
+                }
+                <span className={cn(
+                  "text-sm font-bold",
+                  myAnswer.is_correct ? "text-emerald-700 dark:text-emerald-300" : "text-rose-600 dark:text-rose-400"
+                )}>
+                  {myAnswer.is_correct ? "Correct!" : "Wrong answer"}
                 </span>
               </div>
-
-              <div className="divide-y">
-                {attendance.map((row, idx) => {
-                  const rank = idx + 1
-                  const style = RANK_STYLES[rank]
-                  return (
-                    <div
-                      key={row.id}
-                      className={cn(
-                        "flex items-center gap-3 px-4 py-3 transition-colors",
-                        style?.bg,
-                        style?.border,
-                        row.student_id === currentUserId && !style?.bg && "bg-amber-50/40 dark:bg-amber-950/10"
-                      )}
-                    >
-                      {/* Rank */}
-                      <div className="flex w-8 shrink-0 items-center justify-center">
-                        {style ? (
-                          <span className="text-xl leading-none">{style.medal}</span>
-                        ) : (
-                          <span className="text-xs font-black text-muted-foreground">#{rank}</span>
-                        )}
-                      </div>
-
-                      {/* Avatar */}
-                      <Avatar
-                        name={row.student?.name ?? "?"}
-                        url={row.student?.avatar_url ?? null}
-                      />
-
-                      {/* Name */}
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-bold">
-                          {row.student?.name ?? "Unknown"}
-                          {row.student_id === currentUserId && (
-                            <span className="ml-1.5 text-[10px] font-semibold text-muted-foreground">(you)</span>
-                          )}
-                        </p>
-                        {row.student?.target_school && (
-                          <p className="text-[11px] text-muted-foreground truncate">{row.student.target_school}</p>
-                        )}
-                      </div>
-
-                      {/* Controls or score */}
-                      {canLog && isToday ? (
-                        <div className="flex items-center gap-1.5">
-                          <div className="flex items-center gap-0.5 rounded-xl border bg-background/80 p-1 shadow-sm">
-                            <button
-                              onClick={() => handleUpdateCount(row, -1)}
-                              disabled={row.first_answers === 0}
-                              className="flex h-6 w-6 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30"
-                            >
-                              <Minus className="h-3 w-3" />
-                            </button>
-                            <span className="min-w-[2.25rem] text-center text-sm font-black">
-                              {row.first_answers}
-                            </span>
-                            <button
-                              onClick={() => handleUpdateCount(row, 1)}
-                              className="flex h-6 w-6 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                            >
-                              <Plus className="h-3 w-3" />
-                            </button>
-                          </div>
-                          <button
-                            onClick={() => handleRemove(row.id)}
-                            className="flex h-7 w-7 items-center justify-center rounded-lg text-rose-400 transition-colors hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className={cn(
-                          "flex items-center gap-1 rounded-xl px-3 py-1.5",
-                          style?.scoreBg ?? "bg-amber-100 dark:bg-amber-900/30"
-                        )}>
-                          <span className={cn(
-                            "text-sm font-black",
-                            style?.scoreText ?? "text-amber-700 dark:text-amber-300"
-                          )}>
-                            {row.first_answers}
-                          </span>
-                          <span className="text-[10px] font-semibold opacity-60">pts</span>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
+              <PointsBadge points={myAnswer.points_awarded} />
             </div>
-          )}
-
-          {/* Session meta */}
-          {attendance.length > 0 && (
-            <p className="text-center text-xs text-muted-foreground">
-              {attendance.length} participant{attendance.length !== 1 ? "s" : ""} ·{" "}
-              {attendance.reduce((s, r) => s + r.first_answers, 0)} total first answers
-            </p>
           )}
         </div>
       )}
 
-      {/* ── Add student modal ─────────────────────────────────────────────────── */}
-      {addOpen && (
-        <>
-          <div
-            className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
-            onClick={() => setAddOpen(false)}
-          />
-          <div className="fixed bottom-0 left-0 right-0 z-50 flex max-h-[78vh] flex-col rounded-t-3xl border-t bg-background shadow-2xl md:inset-0 md:m-auto md:h-auto md:max-h-[80vh] md:max-w-md md:rounded-2xl md:border">
-
-            {/* Header */}
-            <div className="flex items-center justify-between border-b px-5 py-4">
-              <div>
-                <h3 className="font-black">Add Student</h3>
-                <p className="text-xs text-muted-foreground">Select a student to log for today&apos;s session</p>
-              </div>
-              <button
-                onClick={() => setAddOpen(false)}
-                className="rounded-xl p-1.5 text-muted-foreground hover:bg-muted"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Search input */}
-            <div className="border-b px-4 py-3">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  autoFocus
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search students by name…"
-                  className="w-full rounded-xl border bg-muted/30 py-2.5 pl-9 pr-4 text-sm outline-none transition-all focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20"
-                />
-              </div>
-            </div>
-
-            {/* Results */}
-            <div className="flex-1 overflow-y-auto">
-              {searching ? (
-                <div className="flex items-center justify-center py-10">
-                  <Loader2 className="h-6 w-6 animate-spin text-amber-500/50" />
-                </div>
-              ) : results.length === 0 ? (
-                <div className="flex flex-col items-center py-12 text-center">
-                  <Search className="mb-2 h-8 w-8 text-muted-foreground/30" />
-                  <p className="text-sm font-semibold text-muted-foreground">No students found</p>
-                </div>
-              ) : (
-                <div className="divide-y">
-                  {results.map((s) => {
-                    const added = addedIds.has(s.id)
-                    return (
-                      <div key={s.id} className="flex items-center gap-3 px-5 py-3">
-                        <Avatar name={s.name} url={s.avatar_url} />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-bold">{s.name}</p>
-                          {s.target_school && (
-                            <p className="text-[11px] text-muted-foreground">{s.target_school}</p>
-                          )}
-                        </div>
-                        {added ? (
-                          <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                            Added ✓
-                          </span>
-                        ) : (
-                          <button
-                            disabled={addingId === s.id}
-                            onClick={() => handleAdd(s.id)}
-                            className="flex items-center gap-1.5 rounded-xl bg-amber-500 px-3 py-1.5 text-xs font-bold text-white transition-all hover:bg-amber-600 disabled:opacity-60 active:scale-[0.97]"
-                          >
-                            {addingId === s.id ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <Plus className="h-3 w-3" />
-                            )}
-                            Add
-                          </button>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Pagination */}
-            {total > PER_PAGE && (
-              <div className="flex items-center justify-between border-t px-5 py-3">
-                <span className="text-xs text-muted-foreground">
-                  Showing {Math.min((page - 1) * PER_PAGE + 1, total)}–{Math.min(page * PER_PAGE, total)} of {total}
-                </span>
-                <div className="flex items-center gap-2">
-                  <button
-                    disabled={page === 1 || searching}
-                    onClick={() => doSearch(query, page - 1)}
-                    className="flex h-8 w-8 items-center justify-center rounded-xl border text-muted-foreground transition-colors hover:bg-muted disabled:opacity-30"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                  <button
-                    disabled={page * PER_PAGE >= total || searching}
-                    onClick={() => doSearch(query, page + 1)}
-                    className="flex h-8 w-8 items-center justify-center rounded-xl border text-muted-foreground transition-colors hover:bg-muted disabled:opacity-30"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            )}
+      {/* Leaderboard */}
+      {leaderboard.length > 0 && (
+        <div className="rounded-2xl border bg-background">
+          <div className="flex items-center gap-2 border-b px-4 py-3">
+            <Trophy className="h-4 w-4 text-amber-500" />
+            <span className="font-bold text-sm">Session Leaderboard</span>
           </div>
-        </>
+          <div className="divide-y">
+            {leaderboard.map((entry, idx) => {
+              const rank = idx + 1
+              const style = RANK_STYLES[rank]
+              const isMe = entry.user_id === userId
+              return (
+                <div
+                  key={entry.user_id}
+                  className={cn(
+                    "flex items-center gap-3 px-4 py-3 transition-colors",
+                    style?.bg,
+                    style?.border,
+                    isMe && !style?.bg && "bg-amber-50/40 dark:bg-amber-950/10"
+                  )}
+                >
+                  <div className="flex w-7 shrink-0 items-center justify-center">
+                    {style
+                      ? <span className="text-lg leading-none">{style.medal}</span>
+                      : <span className="text-xs font-black text-muted-foreground">#{rank}</span>
+                    }
+                  </div>
+                  <Avatar name={entry.user.name} url={entry.user.avatar_url} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold">
+                      {entry.user.name}
+                      {isMe && <span className="ml-1.5 text-[10px] font-semibold text-muted-foreground">(you)</span>}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">{entry.correct_answers} correct</p>
+                  </div>
+                  <div className="flex items-center gap-1 rounded-xl bg-amber-100 px-3 py-1 dark:bg-amber-900/30">
+                    <span className="text-sm font-black text-amber-700 dark:text-amber-300">{entry.total_points}</span>
+                    <span className="text-[10px] font-semibold text-amber-600/60 dark:text-amber-400/60">pts</span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Empty leaderboard hint */}
+      {leaderboard.length === 0 && currentQuestion && !answered && (
+        <div className="flex items-center gap-3 rounded-2xl border border-dashed px-4 py-3 text-sm text-muted-foreground">
+          <Trophy className="h-4 w-4 shrink-0 text-amber-400" />
+          Be the first to answer correctly — earn <strong className="text-foreground">10 points!</strong>
+        </div>
       )}
     </div>
   )

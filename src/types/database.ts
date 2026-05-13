@@ -64,9 +64,27 @@ export interface Database {
         Relationships: []
       }
       brainstorm_sessions: {
-        Row: { id: string; session_date: string; title: string | null; created_by: string | null; created_at: string }
-        Insert: { id?: string; session_date?: string; title?: string | null; created_by?: string | null; created_at?: string }
-        Update: { id?: string; session_date?: string; title?: string | null; created_by?: string | null }
+        Row: { id: string; session_date: string; title: string | null; created_by: string | null; created_at: string; is_live: boolean; ended_at: string | null }
+        Insert: { id?: string; session_date?: string; title?: string | null; created_by?: string | null; created_at?: string; is_live?: boolean; ended_at?: string | null }
+        Update: { id?: string; session_date?: string; title?: string | null; created_by?: string | null; is_live?: boolean; ended_at?: string | null }
+        Relationships: []
+      }
+      brainstorm_hosts: {
+        Row: { id: string; user_id: string; granted_by: string | null; is_active: boolean; created_at: string }
+        Insert: { id?: string; user_id: string; granted_by?: string | null; is_active?: boolean; created_at?: string }
+        Update: { id?: string; user_id?: string; granted_by?: string | null; is_active?: boolean }
+        Relationships: []
+      }
+      brainstorm_pushed_questions: {
+        Row: { id: string; session_id: string; question_id: string; pushed_by: string; pushed_at: string; push_order: number }
+        Insert: { id?: string; session_id: string; question_id: string; pushed_by: string; pushed_at?: string; push_order?: number }
+        Update: { id?: string; session_id?: string; question_id?: string; pushed_by?: string; pushed_at?: string; push_order?: number }
+        Relationships: []
+      }
+      brainstorm_answers: {
+        Row: { id: string; pushed_question_id: string; user_id: string; selected_option_id: string; is_correct: boolean; points_awarded: number; answered_at: string }
+        Insert: { id?: string; pushed_question_id: string; user_id: string; selected_option_id: string; is_correct: boolean; points_awarded?: number; answered_at?: string }
+        Update: { id?: string; pushed_question_id?: string; user_id?: string; selected_option_id?: string; is_correct?: boolean; points_awarded?: number }
         Relationships: []
       }
       brainstorm_attendance: {
