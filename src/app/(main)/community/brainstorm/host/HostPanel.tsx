@@ -59,9 +59,13 @@ export function HostPanel({
   const [leaderboard, setLeaderboard] = useState(initialLeaderboard)
   const [answers, setAnswers] = useState(initialAnswers)
 
-  // Keep a ref to currentQuestion so the stable realtime channel can see the latest value
+  // Ref so realtime callback always sees latest currentQuestion without re-subscribing
   const currentQuestionRef = useRef(currentQuestion)
   useEffect(() => { currentQuestionRef.current = currentQuestion }, [currentQuestion])
+
+  // Broadcast channel ref so action handlers can send without depending on the effect
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const channelRef = useRef<any>(null)
 
   // ── Subject selection ──────────────────────────────────────────────────────
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(() => {
@@ -72,12 +76,11 @@ export function HostPanel({
   })
 
   // ── Question navigator ─────────────────────────────────────────────────────
-  // We load BATCH questions at a time, display one at a time
   const [search, setSearch] = useState("")
   const [batch, setBatch] = useState<GeneralQuestion[]>([])
-  const [batchPage, setBatchPage] = useState(1)      // which page of BATCH was fetched
-  const [totalQ, setTotalQ] = useState(0)            // total questions for this subject
-  const [localIdx, setLocalIdx] = useState(0)        // index within current batch
+  const [batchPage, setBatchPage] = useState(1)
+  const [totalQ, setTotalQ] = useState(0)
+  const [localIdx, setLocalIdx] = useState(0)
   const [loadingQ, setLoadingQ] = useState(false)
 
   const fetchBatch = useCallback(async (subjectId: string, q: string, bPage: number, goToLast = false) => {
@@ -90,39 +93,29 @@ export function HostPanel({
     setLoadingQ(false)
   }, [])
 
-  // Load first batch when subject or search changes
   useEffect(() => {
-    if (selectedSubject) {
-      const t = setTimeout(() => fetchBatch(selectedSubject.id, search, 1, false), search ? 300 : 0)
-      return () => clearTimeout(t)
-    }
+    if (!selectedSubject) return
+    const t = setTimeout(() => fetchBatch(selectedSubject.id, search, 1, false), search ? 300 : 0)
+    return () => clearTimeout(t)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSubject?.id, search, fetchBatch])
 
-  const globalIndex = (batchPage - 1) * BATCH + localIdx   // 0-based position overall
+  const globalIndex = (batchPage - 1) * BATCH + localIdx
   const currentQ = batch[localIdx] ?? null
 
   function handlePrev() {
     if (loadingQ) return
-    if (localIdx > 0) {
-      setLocalIdx(localIdx - 1)
-    } else if (batchPage > 1 && selectedSubject) {
-      // Go to last question of previous batch
-      fetchBatch(selectedSubject.id, search, batchPage - 1, true)
-    }
+    if (localIdx > 0) setLocalIdx(localIdx - 1)
+    else if (batchPage > 1 && selectedSubject) fetchBatch(selectedSubject.id, search, batchPage - 1, true)
   }
 
   function handleNext() {
     if (loadingQ) return
-    if (localIdx < batch.length - 1) {
-      setLocalIdx(localIdx + 1)
-    } else if (globalIndex + 1 < totalQ && selectedSubject) {
-      // Load next batch
-      fetchBatch(selectedSubject.id, search, batchPage + 1, false)
-    }
+    if (localIdx < batch.length - 1) setLocalIdx(localIdx + 1)
+    else if (globalIndex + 1 < totalQ && selectedSubject) fetchBatch(selectedSubject.id, search, batchPage + 1, false)
   }
 
-  // ── Realtime — stable channel, reads currentQuestion via ref ───────────────
+  // ── Broadcast channel — set up once, stable for the session ───────────────
   const refreshLeaderboard = useCallback(async () => {
     const lb = await getSessionLeaderboard(initialSession.id)
     setLeaderboard(lb)
@@ -135,26 +128,22 @@ export function HostPanel({
 
   useEffect(() => {
     const supabase = createClient()
-    const channel = supabase
-      .channel(`host-session-${initialSession.id}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "brainstorm_answers" },
-        async (payload) => {
-          // Always refresh the leaderboard
-          await refreshLeaderboard()
-          // Only refresh answers feed if this answer is for the current question
-          const cq = currentQuestionRef.current
-          if (cq && (payload.new as { pushed_question_id: string }).pushed_question_id === cq.id) {
-            await refreshAnswers(cq.id)
-          }
-        }
-      )
+    const ch = supabase.channel(`brainstorm:${initialSession.id}`)
+
+    ch
+      // Student submitted an answer — refresh leaderboard + answers feed
+      .on("broadcast", { event: "answer_submitted" }, async () => {
+        await refreshLeaderboard()
+        const cq = currentQuestionRef.current
+        if (cq) await refreshAnswers(cq.id)
+      })
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
-    // Intentionally NOT including currentQuestion in deps — use ref instead
-    // so the channel isn't torn down on every question change
+    channelRef.current = ch
+    return () => {
+      supabase.removeChannel(ch)
+      channelRef.current = null
+    }
   }, [initialSession.id, refreshLeaderboard, refreshAnswers])
 
   // ── Session actions ────────────────────────────────────────────────────────
@@ -164,6 +153,8 @@ export function HostPanel({
         const res = await endLiveSession(initialSession.id)
         if (!res.success) { toast.error("Failed to end session"); return }
         setIsLive(false)
+        // Notify students the session ended
+        channelRef.current?.send({ type: "broadcast", event: "session_ended", payload: {} })
         toast.success("Session ended")
       } else {
         const res = await startLiveSession(initialSession.id)
@@ -187,15 +178,16 @@ export function HostPanel({
       if (pushed) {
         setCurrentQuestion(pushed)
         setAnswers([])
+        // Notify all students a new question is live
+        channelRef.current?.send({ type: "broadcast", event: "question_pushed", payload: {} })
       }
-      toast.success("Question broadcast!")
+      toast.success("Question pushed to students!")
     })
   }
 
   // ── Header ─────────────────────────────────────────────────────────────────
   const sessionDate = new Date(initialSession.session_date + "T00:00:00")
     .toLocaleDateString("en-NG", { weekday: "short", month: "short", day: "numeric" })
-
   const isCurrentQ = currentQuestion?.question.id === currentQ?.id
 
   return (
@@ -225,10 +217,7 @@ export function HostPanel({
                 : "bg-white text-orange-600 shadow-lg hover:shadow-xl"
             )}
           >
-            {isPending
-              ? <Loader2 className="h-4 w-4 animate-spin" />
-              : isLive ? <Square className="h-4 w-4" /> : <Radio className="h-4 w-4" />
-            }
+            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : isLive ? <Square className="h-4 w-4" /> : <Radio className="h-4 w-4" />}
             {isLive ? "End Session" : "Go Live"}
           </button>
         </div>
@@ -249,7 +238,6 @@ export function HostPanel({
               <BookOpen className="h-4 w-4 text-muted-foreground" />
               <p className="font-bold">Pick today&apos;s subject</p>
             </div>
-
             {subjects.length === 0 ? (
               <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed py-16 text-center">
                 <BookOpen className="h-8 w-8 text-muted-foreground/40" />
@@ -275,13 +263,13 @@ export function HostPanel({
           </div>
 
         ) : (
-          /* ── Step 2: Single-question browser + right panel ── */
+          /* ── Step 2: Question browser + right panel ── */
           <div className="grid gap-5 md:grid-cols-[1fr_300px]">
 
             {/* Left: question navigator */}
             <div className="space-y-4">
 
-              {/* Subject header + search */}
+              {/* Subject + search */}
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <button
                   onClick={() => { setSelectedSubject(null); setBatch([]); setSearch("") }}
@@ -300,7 +288,6 @@ export function HostPanel({
                 </div>
               </div>
 
-              {/* Counter */}
               {totalQ > 0 && (
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
                   <span className="font-semibold">{selectedSubject.name}</span>
@@ -317,31 +304,26 @@ export function HostPanel({
                 <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed py-16 text-center">
                   <Search className="h-7 w-7 text-muted-foreground/40" />
                   <p className="text-sm font-semibold text-muted-foreground">No questions found</p>
-                  {search && <p className="text-xs text-muted-foreground">Try a different search term</p>}
+                  {search && <p className="text-xs text-muted-foreground">Try a different search</p>}
                 </div>
               ) : (
                 <div className={cn(
                   "rounded-2xl border bg-background p-5 space-y-4 transition-colors",
                   isCurrentQ && "border-amber-400/60 bg-amber-50/40 dark:bg-amber-950/10"
                 )}>
-                  {/* Year badge + live tag */}
                   <div className="flex items-center gap-2 flex-wrap">
                     {currentQ.year && (
                       <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">{currentQ.year}</span>
                     )}
                     {isCurrentQ && (
-                      <span className="rounded-full bg-amber-500/20 px-2.5 py-0.5 text-xs font-bold text-amber-600 dark:text-amber-400">
-                        Currently Live
-                      </span>
+                      <span className="rounded-full bg-amber-500/20 px-2.5 py-0.5 text-xs font-bold text-amber-600 dark:text-amber-400">Currently Live</span>
                     )}
                   </div>
 
-                  {/* Question text */}
                   <p className="text-sm font-semibold leading-relaxed">
                     <InlineText text={currentQ.text} />
                   </p>
 
-                  {/* Options */}
                   <div className="space-y-1.5">
                     {currentQ.options.sort((a, b) => a.label.localeCompare(b.label)).map((opt, i) => (
                       <div key={opt.id} className={cn(
@@ -357,7 +339,6 @@ export function HostPanel({
                     ))}
                   </div>
 
-                  {/* Push button */}
                   <button
                     onClick={handleBroadcast}
                     disabled={isPending || isCurrentQ || !isLive}
@@ -371,18 +352,16 @@ export function HostPanel({
                     )}
                   >
                     {isPending
-                      ? <><Loader2 className="h-4 w-4 animate-spin" /> Broadcasting…</>
-                      : isCurrentQ
-                      ? "Currently Live"
-                      : isLive
-                      ? <><Zap className="h-4 w-4" /> Push to Students</>
+                      ? <><Loader2 className="h-4 w-4 animate-spin" /> Pushing…</>
+                      : isCurrentQ ? "Currently Live"
+                      : isLive ? <><Zap className="h-4 w-4" /> Push to Students</>
                       : "Go Live first"
                     }
                   </button>
                 </div>
               )}
 
-              {/* Prev / Next navigation */}
+              {/* Prev / Next */}
               {totalQ > 1 && (
                 <div className="flex items-center justify-between gap-3">
                   <button
@@ -392,9 +371,7 @@ export function HostPanel({
                   >
                     <ChevronLeft className="h-4 w-4" /> Previous
                   </button>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">
-                    {globalIndex + 1} / {totalQ}
-                  </span>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">{globalIndex + 1} / {totalQ}</span>
                   <button
                     onClick={handleNext}
                     disabled={loadingQ || globalIndex + 1 >= totalQ}
@@ -406,7 +383,7 @@ export function HostPanel({
               )}
             </div>
 
-            {/* Right: current Q + answers + leaderboard */}
+            {/* Right: live status + answers + leaderboard */}
             <div className="space-y-4">
 
               {/* Broadcasting now */}
@@ -418,20 +395,18 @@ export function HostPanel({
                       <InlineText text={currentQuestion.question.text} />
                     </p>
                     <div className="space-y-1.5">
-                      {currentQuestion.question.options
-                        .sort((a, b) => a.label.localeCompare(b.label))
-                        .map((opt) => (
-                          <div key={opt.id} className={cn(
-                            "flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold",
-                            opt.is_correct
-                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-                              : "bg-muted/50 text-muted-foreground"
-                          )}>
-                            <span className="font-black w-4 shrink-0">{opt.label}.</span>
-                            <span className="flex-1 leading-snug"><InlineText text={opt.text} /></span>
-                            {opt.is_correct && <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />}
-                          </div>
-                        ))}
+                      {currentQuestion.question.options.sort((a, b) => a.label.localeCompare(b.label)).map((opt) => (
+                        <div key={opt.id} className={cn(
+                          "flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold",
+                          opt.is_correct
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
+                            : "bg-muted/50 text-muted-foreground"
+                        )}>
+                          <span className="font-black w-4 shrink-0">{opt.label}.</span>
+                          <span className="flex-1 leading-snug"><InlineText text={opt.text} /></span>
+                          {opt.is_correct && <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />}
+                        </div>
+                      ))}
                     </div>
                   </>
                 ) : (
@@ -457,9 +432,7 @@ export function HostPanel({
                           <Avatar name={a.user.name} url={a.user.avatar_url} />
                           <span className="flex-1 text-xs font-semibold truncate">{a.user.name}</span>
                           {a.is_correct
-                            ? <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
-                                +{a.points_awarded}pts
-                              </span>
+                            ? <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">+{a.points_awarded}pts</span>
                             : <XCircle className="h-3.5 w-3.5 text-rose-400 shrink-0" />
                           }
                         </div>
@@ -495,6 +468,7 @@ export function HostPanel({
                   </div>
                 )}
               </div>
+
             </div>
           </div>
         )}

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useTransition, useCallback } from "react"
+import { useState, useEffect, useTransition, useCallback, useRef } from "react"
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
@@ -63,82 +63,71 @@ export function BrainstormClient({
   const [selectedOption, setSelectedOption] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
+  // Ref to the broadcast channel so handleSubmit can send without re-renders
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const channelRef = useRef<any>(null)
+
   const refreshLeaderboard = useCallback(async (sessionId: string) => {
     const lb = await getSessionLeaderboard(sessionId)
     setLeaderboard(lb)
   }, [])
 
-  // Realtime: watch for new questions, new answers, and session state changes
+  // ── Broadcast channel — primary realtime mechanism ─────────────────────────
+  // Subscribe whenever we have a live session ID
   useEffect(() => {
-    const supabase = createClient()
-    const sessionId = session?.id
+    if (!session?.id) return
 
-    const channel = supabase
-      .channel("brainstorm-student")
-      // New question pushed
-      .on("postgres_changes",
-        { event: "INSERT", schema: "public", table: "brainstorm_pushed_questions" },
-        async (payload) => {
-          const sid = (payload.new as { session_id: string }).session_id
-          const effectiveSessionId = sessionId ?? sid
-          const q = await getCurrentQuestion(effectiveSessionId)
-          if (q) {
-            setCurrentQuestion(q)
-            setMyAnswer(null)
-            setSelectedOption(null)
-          }
+    const supabase = createClient()
+    const ch = supabase.channel(`brainstorm:${session.id}`)
+
+    ch
+      // Host pushed a new question
+      .on("broadcast", { event: "question_pushed" }, async () => {
+        const q = await getCurrentQuestion(session.id)
+        if (q) {
+          setCurrentQuestion(q)
+          setMyAnswer(null)
+          setSelectedOption(null)
         }
-      )
-      // New answer submitted (by anyone) — refresh leaderboard
-      .on("postgres_changes",
-        { event: "INSERT", schema: "public", table: "brainstorm_answers" },
-        async () => {
-          if (sessionId) await refreshLeaderboard(sessionId)
-        }
-      )
-      // Session went live or ended
-      .on("postgres_changes",
-        { event: "UPDATE", schema: "public", table: "brainstorm_sessions" },
-        async (payload) => {
-          const updated = payload.new as { id: string; is_live: boolean; ended_at: string | null; session_date: string; title: string | null; created_by: string }
-          if (updated.is_live) {
-            setSession(updated)
-            // Fetch current question if any
-            const q = await getCurrentQuestion(updated.id)
-            setCurrentQuestion(q)
-            setMyAnswer(null)
-            setSelectedOption(null)
-            await refreshLeaderboard(updated.id)
-          } else {
-            // Session ended
-            setSession(prev => prev ? { ...prev, is_live: false } : prev)
-          }
-        }
-      )
+      })
+      // Someone answered — refresh leaderboard
+      .on("broadcast", { event: "answer_submitted" }, async () => {
+        await refreshLeaderboard(session.id)
+      })
+      // Host ended the session
+      .on("broadcast", { event: "session_ended" }, () => {
+        setSession(prev => prev ? { ...prev, is_live: false } : prev)
+      })
       .subscribe()
 
-    // Also poll for a live session if none currently (host may go live after page load)
-    let pollInterval: ReturnType<typeof setInterval> | null = null
-    if (!session?.is_live) {
-      pollInterval = setInterval(async () => {
-        const live = await getLiveSession()
-        if (live) {
-          setSession(live)
-          const q = await getCurrentQuestion(live.id)
-          setCurrentQuestion(q)
-          const [lb] = await Promise.all([getSessionLeaderboard(live.id)])
-          setLeaderboard(lb)
-          if (pollInterval) clearInterval(pollInterval)
-        }
-      }, 8000)
-    }
-
+    channelRef.current = ch
     return () => {
-      supabase.removeChannel(channel)
-      if (pollInterval) clearInterval(pollInterval)
+      supabase.removeChannel(ch)
+      channelRef.current = null
     }
-  }, [session?.id, session?.is_live, refreshLeaderboard])
+  }, [session?.id, refreshLeaderboard])
 
+  // ── Poll for a live session when there isn't one yet ──────────────────────
+  useEffect(() => {
+    if (session?.is_live) return
+    const interval = setInterval(async () => {
+      const live = await getLiveSession()
+      if (live) {
+        setSession(live)
+        const [q, lb] = await Promise.all([
+          getCurrentQuestion(live.id),
+          getSessionLeaderboard(live.id),
+        ])
+        setCurrentQuestion(q)
+        setLeaderboard(lb)
+        setMyAnswer(null)
+        setSelectedOption(null)
+      }
+    }, 6000)
+    return () => clearInterval(interval)
+  }, [session?.is_live])
+
+  // ── Answer submission ──────────────────────────────────────────────────────
   function handleSubmit(optionId: string) {
     if (myAnswer || isPending) return
     setSelectedOption(optionId)
@@ -147,7 +136,6 @@ export function BrainstormClient({
       const res = await submitBrainstormAnswer(currentQuestion.id, optionId)
       if (!res.success) {
         if (res.error === "ALREADY_ANSWERED") {
-          // Fetch their answer in case of race condition
           const existing = await getUserAnswerForPushedQuestion(currentQuestion.id)
           setMyAnswer(existing)
         } else {
@@ -162,15 +150,21 @@ export function BrainstormClient({
         is_correct: res.data.isCorrect,
         points_awarded: res.data.pointsAwarded,
       })
+      // Broadcast so host + other students refresh leaderboard instantly
+      channelRef.current?.send({
+        type: "broadcast",
+        event: "answer_submitted",
+        payload: {},
+      })
       if (res.data.isCorrect) {
-        toast.success(res.data.pointsAwarded > 0 ? `Correct! +${res.data.pointsAwarded} pts` : "Correct! (no points — others answered first)")
+        toast.success(res.data.pointsAwarded > 0 ? `Correct! +${res.data.pointsAwarded} pts` : "Correct!")
       } else {
         toast.error("Wrong answer")
       }
     })
   }
 
-  // ── No live session ─────────────────────────────────────────────────────────
+  // ── No live session ────────────────────────────────────────────────────────
   if (!session?.is_live) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 px-5 py-16 text-center">
@@ -180,12 +174,12 @@ export function BrainstormClient({
         <div>
           <h2 className="font-black text-lg">No live session right now</h2>
           <p className="mt-1 text-sm text-muted-foreground max-w-xs">
-            When a host starts a session, questions will appear here instantly — no refresh needed.
+            When a host starts a session, questions will appear here instantly.
           </p>
         </div>
-        <div className="mt-2 flex items-center gap-2 rounded-xl border border-dashed border-amber-300 bg-amber-50 px-4 py-2.5 dark:bg-amber-950/20">
+        <div className="flex items-center gap-2 rounded-xl border border-dashed border-amber-300 bg-amber-50 px-4 py-2.5 dark:bg-amber-950/20">
           <Radio className="h-4 w-4 text-amber-500 animate-pulse" />
-          <span className="text-sm font-semibold text-amber-700 dark:text-amber-300">Waiting for host to go live…</span>
+          <span className="text-sm font-semibold text-amber-700 dark:text-amber-300">Checking every 6 seconds…</span>
         </div>
       </div>
     )
@@ -203,20 +197,16 @@ export function BrainstormClient({
           <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />
           LIVE
         </span>
-        {session.title && (
-          <span className="text-sm font-semibold text-muted-foreground">{session.title}</span>
-        )}
-        <span className="ml-auto text-xs text-muted-foreground">
-          {leaderboard.length} participant{leaderboard.length !== 1 ? "s" : ""}
-        </span>
+        {session.title && <span className="text-sm font-semibold text-muted-foreground">{session.title}</span>}
+        <span className="ml-auto text-xs text-muted-foreground">{leaderboard.length} participant{leaderboard.length !== 1 ? "s" : ""}</span>
       </div>
 
       {/* Question card */}
       {!currentQuestion ? (
         <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed bg-muted/20 py-12 text-center">
           <Zap className="h-8 w-8 text-amber-400 animate-bounce" />
-          <p className="font-bold">Host is preparing the first question…</p>
-          <p className="text-sm text-muted-foreground">It&apos;ll appear here the moment they broadcast it.</p>
+          <p className="font-bold">Waiting for the first question…</p>
+          <p className="text-sm text-muted-foreground">It will appear here the moment the host pushes it.</p>
         </div>
       ) : (
         <div className="rounded-2xl border bg-background shadow-sm">
@@ -228,9 +218,7 @@ export function BrainstormClient({
             {currentQuestion.question.year && (
               <span className="text-xs text-muted-foreground">{currentQuestion.question.year}</span>
             )}
-            <span className="ml-auto text-xs font-semibold text-muted-foreground">
-              Q{currentQuestion.push_order}
-            </span>
+            <span className="ml-auto text-xs font-semibold text-muted-foreground">Q{currentQuestion.push_order}</span>
           </div>
 
           {/* Question text */}
@@ -249,13 +237,9 @@ export function BrainstormClient({
 
               let optStyle = "border bg-background hover:bg-muted/50 active:scale-[0.99]"
               if (showResult) {
-                if (isCorrect) {
-                  optStyle = "border-2 border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30"
-                } else if (isSelected && !isCorrect) {
-                  optStyle = "border-2 border-rose-400 bg-rose-50 dark:bg-rose-950/30"
-                } else {
-                  optStyle = "border bg-muted/30 opacity-50"
-                }
+                if (isCorrect) optStyle = "border-2 border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30"
+                else if (isSelected) optStyle = "border-2 border-rose-400 bg-rose-50 dark:bg-rose-950/30"
+                else optStyle = "border bg-muted/30 opacity-50"
               } else if (isSelected) {
                 optStyle = "border-2 border-primary bg-primary/5"
               }
@@ -295,9 +279,7 @@ export function BrainstormClient({
           {myAnswer && (
             <div className={cn(
               "mx-4 mb-4 flex items-center justify-between gap-3 rounded-xl px-4 py-3",
-              myAnswer.is_correct
-                ? "bg-emerald-50 dark:bg-emerald-950/30"
-                : "bg-rose-50 dark:bg-rose-950/30"
+              myAnswer.is_correct ? "bg-emerald-50 dark:bg-emerald-950/30" : "bg-rose-50 dark:bg-rose-950/30"
             )}>
               <div className="flex items-center gap-2">
                 {myAnswer.is_correct
@@ -330,20 +312,13 @@ export function BrainstormClient({
               const style = RANK_STYLES[rank]
               const isMe = entry.user_id === userId
               return (
-                <div
-                  key={entry.user_id}
-                  className={cn(
-                    "flex items-center gap-3 px-4 py-3 transition-colors",
-                    style?.bg,
-                    style?.border,
-                    isMe && !style?.bg && "bg-amber-50/40 dark:bg-amber-950/10"
-                  )}
-                >
+                <div key={entry.user_id} className={cn(
+                  "flex items-center gap-3 px-4 py-3",
+                  style?.bg, style?.border,
+                  isMe && !style?.bg && "bg-amber-50/40 dark:bg-amber-950/10"
+                )}>
                   <div className="flex w-7 shrink-0 items-center justify-center">
-                    {style
-                      ? <span className="text-lg leading-none">{style.medal}</span>
-                      : <span className="text-xs font-black text-muted-foreground">#{rank}</span>
-                    }
+                    {style ? <span className="text-lg leading-none">{style.medal}</span> : <span className="text-xs font-black text-muted-foreground">#{rank}</span>}
                   </div>
                   <Avatar name={entry.user.name} url={entry.user.avatar_url} />
                   <div className="min-w-0 flex-1">
@@ -364,7 +339,6 @@ export function BrainstormClient({
         </div>
       )}
 
-      {/* Empty leaderboard hint */}
       {leaderboard.length === 0 && currentQuestion && !answered && (
         <div className="flex items-center gap-3 rounded-2xl border border-dashed px-4 py-3 text-sm text-muted-foreground">
           <Trophy className="h-4 w-4 shrink-0 text-amber-400" />
