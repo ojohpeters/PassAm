@@ -21,24 +21,27 @@ export default async function ExamStartPage({
 
   if (!school) redirect("/dashboard")
 
-  // Subjects that actually have questions for this school
+  // Subjects + years that actually have questions for this school
   const { data: rows } = await admin
     .from("questions")
-    .select("subject_id, subject:subjects(id, name)")
+    .select("subject_id, year, subject:subjects(id, name)")
     .eq("school_id", school.id)
 
   const subjectMap = new Map<string, { id: string; name: string }>()
   const subjectCounts: Record<string, number> = {}
+  const yearSet = new Set<number>()
   for (const row of rows ?? []) {
     const s = row.subject as any
     if (s?.id) {
       if (!subjectMap.has(s.id)) subjectMap.set(s.id, s)
       subjectCounts[s.id] = (subjectCounts[s.id] ?? 0) + 1
     }
+    if (row.year != null) yearSet.add(row.year)
   }
   const availableSubjects = Array.from(subjectMap.values()).sort((a, b) =>
     a.name.localeCompare(b.name)
   )
+  const availableYears = Array.from(yearSet).sort((a, b) => b - a)
 
   // Admin exam config for this school
   const { data: cfg } = await admin
@@ -58,6 +61,7 @@ export default async function ExamStartPage({
       schoolSlug={params.schoolId}
       subjects={availableSubjects}
       subjectCounts={subjectCounts}
+      availableYears={availableYears}
       requiredSubjectIds={requiredSubjectIds}
       adminDurationMins={durationMins}
       adminSubjectCounts={configuredSubjectCounts}

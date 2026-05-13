@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { startExam } from "@/actions/exam.actions"
 import { toast } from "sonner"
-import { BookOpen, Check, Clock, Loader2, Lock, Zap, LayoutGrid } from "lucide-react"
+import { BookOpen, CalendarDays, Check, Clock, ChevronDown, Loader2, Lock, Zap, LayoutGrid } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 
@@ -15,6 +15,7 @@ type Props = {
   schoolSlug: string
   subjects: Subject[]
   subjectCounts: Record<string, number>
+  availableYears: number[]
   requiredSubjectIds: string[]
   adminDurationMins: number | null
   adminSubjectCounts: Record<string, number>
@@ -43,6 +44,7 @@ export function SubjectPicker({
   schoolSlug,
   subjects,
   subjectCounts,
+  availableYears,
   requiredSubjectIds,
   adminDurationMins,
   adminSubjectCounts,
@@ -67,6 +69,7 @@ export function SubjectPicker({
   )
   const [totalQuestions, setTotalQuestions] = useState(10)
   const [durationMins, setDurationMins] = useState(30)
+  const [year, setYear] = useState<number | null>(null)
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -100,10 +103,15 @@ export function SubjectPicker({
       questionCount = totalQuestions
     }
 
-    const result = await startExam(school.id, subjectIds, questionCount, perSubjectCounts, isAdminConfigured ? undefined : durationMins)
+    const result = await startExam(
+      school.id, subjectIds, questionCount,
+      perSubjectCounts,
+      isAdminConfigured ? undefined : durationMins,
+      year ?? undefined
+    )
     if (!result.success) {
       const msg =
-        result.error === "INSUFFICIENT_QUESTIONS" ? "Not enough questions for one of the subjects. Try adjusting your selection." :
+        result.error === "INSUFFICIENT_QUESTIONS" ? (year ? `No questions found for ${year} in one of your subjects. Try a different year or "All Years".` : "Not enough questions for one of the subjects. Try adjusting your selection.") :
         result.error === "NO_SUBJECTS"            ? "Please select at least 1 subject." :
         "Failed to start exam — please try again."
       toast.error(msg)
@@ -168,6 +176,10 @@ export function SubjectPicker({
               })}
             </div>
           </div>
+
+          {availableYears.length > 0 && (
+            <YearSelect years={availableYears} value={year} onChange={setYear} />
+          )}
 
           <div className="rounded-2xl border bg-amber-50/60 border-amber-200/60 px-4 py-3 text-xs text-amber-800 dark:bg-amber-950/20 dark:border-amber-800/40 dark:text-amber-300">
             This is your school&apos;s official mock exam configuration. Subjects and question counts are set by your admin and cannot be changed.
@@ -258,6 +270,10 @@ export function SubjectPicker({
           </div>
           <p className="text-xs text-muted-foreground">Default is 10. Max is 50.</p>
         </div>
+
+        {availableYears.length > 0 && (
+          <YearSelect years={availableYears} value={year} onChange={setYear} />
+        )}
 
         {/* Time limit */}
         <div className="rounded-2xl border bg-background p-4 space-y-3">
@@ -392,6 +408,44 @@ export function SubjectPicker({
           </Link>
         </div>
       </div>
+    </div>
+  )
+}
+
+function YearSelect({
+  years,
+  value,
+  onChange,
+}: {
+  years: number[]
+  value: number | null
+  onChange: (y: number | null) => void
+}) {
+  return (
+    <div className="rounded-2xl border bg-background p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <CalendarDays className="h-4 w-4 text-muted-foreground" />
+          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Year</p>
+        </div>
+        <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wide">optional</span>
+      </div>
+      <div className="relative">
+        <select
+          value={value ?? ""}
+          onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
+          className="w-full appearance-none rounded-xl border bg-background px-3 py-2.5 pr-9 text-sm font-semibold text-foreground outline-none ring-primary/40 focus:border-primary focus:ring-2 transition-all"
+        >
+          <option value="">All Years</option>
+          {years.map((y) => (
+            <option key={y} value={y}>{y}</option>
+          ))}
+        </select>
+        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {value ? `Showing questions from ${value} only.` : "Questions from all available years."}
+      </p>
     </div>
   )
 }

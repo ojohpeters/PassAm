@@ -49,7 +49,8 @@ export async function startExam(
   subjectIds: string[],
   totalQuestions = 10,
   perSubjectCounts?: Record<string, number>,
-  studentDurationMins?: number
+  studentDurationMins?: number,
+  year?: number
 ): Promise<ActionResult<{ attemptId: string; questions: QuestionWithOptions[]; timeLimitSecs: number }>> {
   const user = await getAppUser()
   if (!user) return { success: false, error: "UNAUTHORIZED" }
@@ -86,7 +87,7 @@ export async function startExam(
     const subjectId = subjectIds[i]
     const idealPerSubject = perSubjectCounts?.[subjectId] ?? Math.floor(totalTarget / subjectIds.length)
 
-    const { data: pool } = await admin
+    const baseQuery = admin
       .from("questions")
       .select(`
         id, text, image_url, explanation, year, school_id, subject_id,
@@ -95,6 +96,8 @@ export async function startExam(
       `)
       .eq("school_id", schoolId)
       .eq("subject_id", subjectId)
+
+    const { data: pool } = await (year ? baseQuery.eq("year", year) : baseQuery)
 
     if (!pool || pool.length === 0) {
       return { success: false, error: "INSUFFICIENT_QUESTIONS" }
