@@ -382,7 +382,8 @@ export async function getAttemptHistory(page = 1, limit = 10) {
 // are never persisted. Options include is_correct so instant feedback can work.
 export async function getStudyQuestions(
   configs: { subjectId: string; count: number }[],
-  schoolId: string
+  schoolId: string,
+  year?: number
 ): Promise<ActionResult<StudyQuestion[]>> {
   const user = await getAppUser()
   if (!user) return { success: false, error: "UNAUTHORIZED" }
@@ -396,7 +397,7 @@ export async function getStudyQuestions(
   for (const { subjectId, count } of configs) {
     const take = Math.min(50, Math.max(1, count))
 
-    const { data: pool } = await admin
+    let q = admin
       .from("questions")
       .select(`
         id, text, image_url, explanation, year, subject_id,
@@ -405,6 +406,10 @@ export async function getStudyQuestions(
       `)
       .eq("school_id", schoolId)
       .eq("subject_id", subjectId)
+
+    if (year) q = q.eq("year", year) as typeof q
+
+    const { data: pool } = await q
 
     if (!pool || pool.length === 0) continue
 

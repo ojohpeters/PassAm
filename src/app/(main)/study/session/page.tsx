@@ -6,12 +6,12 @@ import { StudyShell } from "@/components/study/StudyShell"
 export default async function StudySessionPage({
   searchParams,
 }: {
-  searchParams: { school?: string; config?: string; duration?: string }
+  searchParams: { school?: string; config?: string; duration?: string; year?: string }
 }) {
   const user = await getAppUser()
   if (!user) redirect("/login")
 
-  const { school: schoolId, config, duration } = searchParams
+  const { school: schoolId, config, duration, year } = searchParams
 
   if (!schoolId || !config) redirect("/study")
 
@@ -24,7 +24,8 @@ export default async function StudySessionPage({
     redirect("/study")
   }
 
-  const result = await getStudyQuestions(configs, schoolId)
+  const yearNum = year ? parseInt(year, 10) : undefined
+  const result = await getStudyQuestions(configs, schoolId, yearNum)
 
   if (!result.success || !result.data.length) redirect("/study")
 
