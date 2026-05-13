@@ -4,7 +4,7 @@ import {
   isBrainstormHost,
   getOrCreateTodaySession,
   getCurrentQuestion,
-  getGeneralSubjects,
+  getBrainstormSubjects,
   getSessionLeaderboard,
   getQuestionAnswers,
 } from "@/actions/brainstorm.actions"
@@ -25,7 +25,7 @@ export default async function BrainstormHostPage() {
   const session = sessionRes.data
   const [currentQuestion, subjects, leaderboard] = await Promise.all([
     getCurrentQuestion(session.id),
-    getGeneralSubjects(),
+    getBrainstormSubjects(),
     getSessionLeaderboard(session.id),
   ])
 

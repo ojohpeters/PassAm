@@ -609,6 +609,47 @@ export async function getGeneralSubjects() {
   return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name))
 }
 
+// Subjects from ALL schools — used by brainstorm host panel
+export async function getBrainstormSubjects() {
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from("questions")
+    .select("subject_id, subject:subjects(id, name)")
+  const map = new Map<string, { id: string; name: string }>()
+  for (const row of data ?? []) {
+    const s = row.subject as any
+    if (s?.id && !map.has(s.id)) map.set(s.id, s)
+  }
+  return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name))
+}
+
+// Questions for a specific subject across ALL schools — for brainstorm host
+export async function getBrainstormQuestions(
+  subjectId: string,
+  search?: string,
+  page = 1,
+  limit = 15
+): Promise<{ questions: GeneralQuestion[]; total: number }> {
+  const admin = createAdminClient()
+  const from = (page - 1) * limit
+  const to = from + limit - 1
+
+  let q = admin
+    .from("questions")
+    .select(`id, text, year, subject:subjects(id, name), options(id, label, text, is_correct)`, { count: "exact" })
+    .eq("subject_id", subjectId)
+    .order("year", { ascending: false, nullsFirst: false })
+    .range(from, to)
+
+  if (search?.trim()) q = q.ilike("text", `%${search.trim()}%`) as typeof q
+
+  const { data, count } = await q
+  return {
+    questions: (data ?? []) as unknown as GeneralQuestion[],
+    total: count ?? 0,
+  }
+}
+
 export type MyBrainstormAnswer = {
   id: string
   selected_option_id: string
