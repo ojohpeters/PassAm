@@ -201,7 +201,7 @@ export async function deleteQuestions(ids: string[]): Promise<ActionResult<{ del
   return { success: true, data: { deleted: ids.length } }
 }
 
-export async function createSchool(name: string, abbreviation: string): Promise<ActionResult<{ id: string }>> {
+export async function createSchool(name: string, abbreviation: string, location?: string): Promise<ActionResult<{ id: string }>> {
   try {
     await requireAdmin()
   } catch {
@@ -215,7 +215,7 @@ export async function createSchool(name: string, abbreviation: string): Promise<
   const admin = createAdminClient()
   const { data, error } = await admin
     .from("schools")
-    .insert({ name: trimmedName, abbreviation: trimmedAbbr })
+    .insert({ name: trimmedName, abbreviation: trimmedAbbr, location: location?.trim() || null })
     .select("id")
     .single()
 

@@ -8,16 +8,17 @@ import { Plus, Loader2, CheckCircle2, XCircle } from "lucide-react"
 export function NewSchoolForm() {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
   const [name, setName] = useState("")
   const [abbreviation, setAbbreviation] = useState("")
+  const [location, setLocation] = useState("")
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setMsg(null)
     startTransition(async () => {
-      const res = await createSchool(name, abbreviation)
+      const res = await createSchool(name, abbreviation, location || undefined)
       if (!res.success) {
         setMsg({ ok: false, text: res.error })
         return
@@ -25,7 +26,7 @@ export function NewSchoolForm() {
       setMsg({ ok: true, text: `${name} (${abbreviation.toUpperCase()}) added!` })
       setName("")
       setAbbreviation("")
-      setOpen(false)
+      setLocation("")
       router.refresh()
     })
   }
@@ -51,7 +52,7 @@ export function NewSchoolForm() {
       {open && (
         <form onSubmit={handleSubmit} className="border-t px-5 py-4 space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2 space-y-1.5 sm:col-span-1">
+            <div className="col-span-2 space-y-1.5">
               <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">School Name</label>
               <input
                 value={name}
@@ -70,6 +71,17 @@ export function NewSchoolForm() {
                 maxLength={10}
                 required
                 className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm font-mono uppercase focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+            <div className="col-span-2 space-y-1.5 sm:col-span-1">
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Location <span className="normal-case font-normal text-muted-foreground/70">(optional)</span>
+              </label>
+              <input
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="e.g. Kaduna, Kaduna State"
+                className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
               />
             </div>
           </div>

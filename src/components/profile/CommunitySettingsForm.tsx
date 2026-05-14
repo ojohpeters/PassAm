@@ -5,6 +5,26 @@ import { updateWhatsappSettings } from "@/actions/community.actions"
 import { MessageCircle, Save, Loader2, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 
+// Convert stored international format (2348012345678) → local display (08012345678)
+function toLocal(stored: string | null): string {
+  if (!stored) return ""
+  if (stored.startsWith("234")) return "0" + stored.slice(3)
+  return stored
+}
+
+// Convert local input (08012345678) → international (2348012345678)
+function toInternational(local: string): string {
+  const digits = local.replace(/\D/g, "")
+  if (digits.startsWith("0")) return "234" + digits.slice(1)
+  if (digits.startsWith("234")) return digits
+  return "234" + digits
+}
+
+function isValidNigerianNumber(local: string): boolean {
+  const digits = local.replace(/\D/g, "")
+  return /^0[789]\d{9}$/.test(digits)
+}
+
 export function CommunitySettingsForm({
   initialNumber,
   initialVisible,
@@ -12,20 +32,34 @@ export function CommunitySettingsForm({
   initialNumber: string | null
   initialVisible: boolean
 }) {
-  const [number, setNumber] = useState(initialNumber ?? "")
+  const [number, setNumber] = useState(toLocal(initialNumber))
   const [visible, setVisible] = useState(initialVisible)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
+  function handleNumberChange(val: string) {
+    // Only allow digits and leading 0
+    const cleaned = val.replace(/[^\d]/g, "")
+    setNumber(cleaned)
+    setError(null)
+  }
+
   function handleSave() {
-    if (visible && !number.trim()) {
-      setError("Add a WhatsApp number first, or turn visibility off.")
-      return
+    if (visible) {
+      if (!number.trim()) {
+        setError("Add a WhatsApp number first, or turn visibility off.")
+        return
+      }
+      if (!isValidNigerianNumber(number)) {
+        setError("Enter a valid Nigerian number, e.g. 08012345678")
+        return
+      }
     }
     setError(null)
+    const toStore = number.trim() ? toInternational(number) : ""
     startTransition(async () => {
-      const res = await updateWhatsappSettings(number, visible)
+      const res = await updateWhatsappSettings(toStore, visible)
       if (res.success) {
         setSaved(true)
         setTimeout(() => setSaved(false), 2500)
@@ -52,17 +86,19 @@ export function CommunitySettingsForm({
       {/* Number input */}
       <div className="space-y-1.5">
         <label className="text-xs font-semibold text-muted-foreground">WhatsApp Number</label>
-        <div className="relative">
-          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-muted-foreground">+</span>
+        <div className="flex items-center rounded-xl border bg-background transition-all focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
+          <span className="select-none pl-3.5 pr-1 text-sm font-bold text-muted-foreground">+234</span>
           <input
-            value={number}
-            onChange={(e) => setNumber(e.target.value)}
-            placeholder="234XXXXXXXXXX"
-            className="w-full rounded-xl border bg-background py-3 pl-7 pr-4 text-sm outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/20"
+            value={number.startsWith("0") ? number.slice(1) : number}
+            onChange={(e) => handleNumberChange("0" + e.target.value.replace(/\D/g, ""))}
+            placeholder="8012345678"
+            maxLength={10}
+            inputMode="numeric"
+            className="flex-1 rounded-xl bg-transparent py-3 pl-0 pr-4 text-sm outline-none"
           />
         </div>
         <p className="text-[11px] text-muted-foreground">
-          Include country code, e.g. 2348012345678 (no +)
+          Enter your number without the leading 0 — e.g. for 08012345678 type 8012345678
         </p>
       </div>
 

@@ -11,7 +11,7 @@ const NAV = [
   { href: "/admin/questions",     label: "Questions",      icon: BookOpen                     },
   { href: "/admin/tips",          label: "Study Tips",     icon: Lightbulb                    },
   { href: "/admin/subjects",      label: "Subjects",       icon: Library                      },
-  { href: "/admin/schools",       label: "Exam Config",    icon: School                       },
+  { href: "/admin/schools",       label: "Schools",        icon: School                       },
   { href: "/admin/school-requests", label: "School Requests", icon: Building2                  },
   { href: "/admin/students",      label: "Students",       icon: Users                        },
   { href: "/admin/notifications", label: "Notifications",  icon: Bell                         },
