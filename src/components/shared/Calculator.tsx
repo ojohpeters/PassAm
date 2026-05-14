@@ -148,13 +148,14 @@ export function Calculator() {
 
                 {/* Row 1 */}
                 <button onClick={clear}
-                  className="flex items-center justify-center rounded-xl text-sm font-black h-11 bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 active:scale-95 transition-all select-none col-span-2">
+                  className="flex items-center justify-center rounded-xl text-sm font-black h-11 bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 active:scale-95 transition-all select-none">
                   C
                 </button>
                 <button onClick={backspace}
                   className="flex items-center justify-center rounded-xl text-sm font-bold h-11 bg-muted/60 hover:bg-muted active:scale-95 transition-all select-none text-muted-foreground">
                   ⌫
                 </button>
+                <button onClick={() => operator("+")} className={opBtn}>+</button>
                 <button onClick={() => operator("/")} className={opBtn}>÷</button>
 
                 {/* Row 2 */}
