@@ -111,17 +111,23 @@ export function ExamShell({ attemptId, questions, timeLimitSecs }: Props) {
     setShowConfirm(false)
     setTabWarning(false)
     document.title = originalTitle.current
-    const result = await submitExam({
-      attemptId,
-      answers: Object.entries(answers).map(([questionId, selectedOptionId]) => ({ questionId, selectedOptionId })),
-      timeTakenSecs: timedOut ? timeLimitSecs : timeLimitSecs - timeLeft,
-    })
-    if (!result.success) {
-      toast.error("Failed to submit — please try again.")
+    try {
+      const result = await submitExam({
+        attemptId,
+        answers: Object.entries(answers).map(([questionId, selectedOptionId]) => ({ questionId, selectedOptionId })),
+        timeTakenSecs: timedOut ? timeLimitSecs : timeLimitSecs - timeLeft,
+      })
+      if (!result.success) {
+        toast.error("Failed to submit — please try again.")
+        setSubmitting(false)
+        return
+      }
+      reset()
+      router.push(`/results/${attemptId}`)
+    } catch {
+      toast.error("Connection error — please try again.")
       setSubmitting(false)
-      return
     }
-    router.push(`/results/${attemptId}`)
   }, [attemptId, answers, timeLeft, timeLimitSecs]) // eslint-disable-line
 
   // Keep ref fresh so event handlers always call the latest version

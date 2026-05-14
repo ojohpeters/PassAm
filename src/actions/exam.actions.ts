@@ -266,12 +266,18 @@ export async function submitExam(
     }
   })
 
-  await admin.from("attempt_answers").upsert(upsertRows, { onConflict: "attempt_id,question_id" })
+  const { error: upsertErr } = await admin
+    .from("attempt_answers")
+    .upsert(upsertRows, { onConflict: "attempt_id,question_id" })
 
-  await admin
+  if (upsertErr) return { success: false, error: "INTERNAL" }
+
+  const { error: updateErr } = await admin
     .from("exam_attempts")
     .update({ score, time_taken_secs: timeTakenSecs, completed_at: new Date().toISOString() })
     .eq("id", attemptId)
+
+  if (updateErr) return { success: false, error: "INTERNAL" }
 
   updateStreak(user.id).catch(console.error)
 
