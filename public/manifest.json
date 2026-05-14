@@ -1,0 +1,25 @@
+{
+  "name": "PrepIQ — Pass Your POST-UTME",
+  "short_name": "PrepIQ",
+  "description": "School-specific CBT practice for Nigerian POST-UTME. Past questions, timed mock exams, daily quiz & leaderboard.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#f59e0b",
+  "categories": ["education"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

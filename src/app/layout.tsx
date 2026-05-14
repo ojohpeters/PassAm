@@ -35,6 +35,13 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: "PrepIQ" }],
   creator: "PrepIQ",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "PrepIQ",
+  },
+  formatDetection: { telephone: false },
   openGraph: {
     type: "website",
     url: APP_URL,
@@ -69,6 +76,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
+      <head>
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <meta name="theme-color" content="#f59e0b" />
+      </head>
       <body className={inter.className}>
         <ChunkErrorHandler />
         <Suspense>
