@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   ChevronLeft,
   Clock,
+  Eye,
   Lightbulb,
   RotateCcw,
   X,
@@ -29,11 +30,9 @@ type Answer = {
   correct: boolean
 }
 
-// Group questions by subject for the tab navigator
 function groupBySubject(questions: StudyQuestion[]) {
   const order: string[] = []
   const groups: Record<string, { name: string; indices: number[] }> = {}
-
   for (let i = 0; i < questions.length; i++) {
     const { subject_id, subject } = questions[i]
     if (!groups[subject_id]) {
@@ -42,7 +41,6 @@ function groupBySubject(questions: StudyQuestion[]) {
     }
     groups[subject_id].indices.push(i)
   }
-
   return { order, groups }
 }
 
@@ -52,17 +50,28 @@ function formatTime(secs: number) {
   return `${m}:${s.toString().padStart(2, "0")}`
 }
 
+const HINT_DELAY = 10_000
+
 export function StudyShell({ questions, durationMins }: Props) {
   const router = useRouter()
-  const [currentIdx, setCurrentIdx] = useState(0)
-  const [answers, setAnswers] = useState<Record<string, Answer>>({})
+  const [currentIdx, setCurrentIdx]     = useState(0)
+  const [answers, setAnswers]           = useState<Record<string, Answer>>({})
   const [showEndModal, setShowEndModal] = useState(false)
-  const [ended, setEnded] = useState(false)
+  const [ended, setEnded]               = useState(false)
+
+  // "Show Answer" hint state
+  const [showHint, setShowHint]       = useState(false)
+  const [revealed, setRevealed]       = useState<Set<string>>(new Set())
+  const hintTimerRef                  = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Per-selection animation state
+  const [animatingId, setAnimatingId]         = useState<string | null>(null)
+  const [animatingCorrect, setAnimatingCorrect] = useState(false)
 
   // Timer
   const [timeLeft, setTimeLeft] = useState(durationMins ? durationMins * 60 : null)
-  const [timesUp, setTimesUp] = useState(false)
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [timesUp, setTimesUp]   = useState(false)
+  const timerRef                = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     if (!timeLeft || timeLeft <= 0) return
@@ -79,25 +88,49 @@ export function StudyShell({ questions, durationMins }: Props) {
     return () => { if (timerRef.current) clearInterval(timerRef.current) }
   }, []) // eslint-disable-line
 
-  const { order, groups } = groupBySubject(questions)
-  const currentQuestion = questions[currentIdx]
-  const currentAnswer = answers[currentQuestion.id]
+  // Reset hint timer whenever the current question changes
+  useEffect(() => {
+    if (hintTimerRef.current) clearTimeout(hintTimerRef.current)
+    const q = questions[currentIdx]
+    setShowHint(false)
+    if (q && !answers[q.id] && !revealed.has(q.id)) {
+      hintTimerRef.current = setTimeout(() => setShowHint(true), HINT_DELAY)
+    }
+    return () => { if (hintTimerRef.current) clearTimeout(hintTimerRef.current) }
+  }, [currentIdx]) // eslint-disable-line
 
-  // Find which subject tab is active
+  const { order, groups } = groupBySubject(questions)
+  const currentQuestion  = questions[currentIdx]
+  const currentAnswer    = answers[currentQuestion.id]
+  const isRevealed       = revealed.has(currentQuestion.id)
+  const showResult       = !!currentAnswer || isRevealed
+
   const activeSubjectId = order.find((sid) =>
     groups[sid].indices.includes(currentIdx)
   ) ?? order[0]
 
   function selectOption(optionId: string) {
-    if (answers[currentQuestion.id]) return // already answered
+    if (showResult) return
+    if (hintTimerRef.current) clearTimeout(hintTimerRef.current)
+    setShowHint(false)
 
-    const isCorrect = currentQuestion.options.some(
-      (o) => o.id === optionId && o.is_correct
-    )
+    const isCorrect = currentQuestion.options.some((o) => o.id === optionId && o.is_correct)
+
+    // Trigger animation
+    setAnimatingId(optionId)
+    setAnimatingCorrect(isCorrect)
+    setTimeout(() => setAnimatingId(null), 700)
+
     setAnswers((prev) => ({
       ...prev,
       [currentQuestion.id]: { selectedId: optionId, correct: isCorrect },
     }))
+  }
+
+  function revealAnswer() {
+    if (hintTimerRef.current) clearTimeout(hintTimerRef.current)
+    setShowHint(false)
+    setRevealed((prev) => new Set([...prev, currentQuestion.id]))
   }
 
   const goTo = useCallback((idx: number) => {
@@ -105,15 +138,16 @@ export function StudyShell({ questions, durationMins }: Props) {
   }, [questions.length])
 
   const answeredCount = Object.keys(answers).length
-  const correctCount = Object.values(answers).filter((a) => a.correct).length
+  const correctCount  = Object.values(answers).filter((a) => a.correct).length
 
   function handleEnd() {
     if (timerRef.current) clearInterval(timerRef.current)
+    if (hintTimerRef.current) clearTimeout(hintTimerRef.current)
     setEnded(true)
     setShowEndModal(false)
   }
 
-  // ── End screen ────────────────────────────────────────────────────────────
+  // ── End screen ───────────────────────────────────────────────────────────
   if (ended) {
     return (
       <div className="flex min-h-full flex-col items-center justify-center bg-background px-4 py-16 text-center">
@@ -149,6 +183,8 @@ export function StudyShell({ questions, durationMins }: Props) {
                 setCurrentIdx(0)
                 setEnded(false)
                 setTimesUp(false)
+                setRevealed(new Set())
+                setShowHint(false)
                 setTimeLeft(durationMins ? durationMins * 60 : null)
               }}
               className="flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3 text-sm font-bold text-white hover:bg-emerald-500 transition-colors"
@@ -167,7 +203,7 @@ export function StudyShell({ questions, durationMins }: Props) {
     )
   }
 
-  // ── Session layout ─────────────────────────────────────────────────────────
+  // ── Session layout ────────────────────────────────────────────────────────
   return (
     <div className="flex min-h-full flex-col bg-background">
 
@@ -181,12 +217,9 @@ export function StudyShell({ questions, durationMins }: Props) {
         </button>
 
         <div className="flex items-center gap-2">
-          {/* Progress */}
           <span className="text-xs text-muted-foreground">
             {answeredCount}/{questions.length} answered
           </span>
-
-          {/* Timer */}
           {timeLeft !== null && (
             <div className={cn(
               "flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold tabular-nums",
@@ -224,21 +257,20 @@ export function StudyShell({ questions, durationMins }: Props) {
                 )}
               >
                 {g.name}
-                <span className="ml-1.5 opacity-60">
-                  {subjectAnswered}/{g.indices.length}
-                </span>
+                <span className="ml-1.5 opacity-60">{subjectAnswered}/{g.indices.length}</span>
               </button>
             )
           })}
         </div>
       )}
 
-      {/* ── Question dots (current subject) ── */}
+      {/* ── Question dots ── */}
       {groups[activeSubjectId] && (
         <div className="flex gap-1.5 overflow-x-auto px-4 py-3 scrollbar-none border-b">
           {groups[activeSubjectId].indices.map((qi, dotIdx) => {
-            const q = questions[qi]
+            const q   = questions[qi]
             const ans = answers[q.id]
+            const rev = revealed.has(q.id)
             const isCurrent = qi === currentIdx
             return (
               <button
@@ -248,7 +280,9 @@ export function StudyShell({ questions, durationMins }: Props) {
                 className={cn(
                   "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold transition-all",
                   isCurrent && "ring-2 ring-primary ring-offset-1",
-                  ans
+                  rev
+                    ? "bg-amber-400 text-white"
+                    : ans
                     ? ans.correct
                       ? "bg-emerald-500 text-white"
                       : "bg-red-500 text-white"
@@ -292,6 +326,11 @@ export function StudyShell({ questions, durationMins }: Props) {
                 }
               </div>
             )}
+            {isRevealed && !currentAnswer && (
+              <div className="flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
+                <Eye className="h-3.5 w-3.5" /> Answer shown
+              </div>
+            )}
           </div>
 
           {/* Question text */}
@@ -299,6 +338,17 @@ export function StudyShell({ questions, durationMins }: Props) {
             <p className="text-base leading-relaxed font-medium md:text-lg">
               {parseInline(currentQuestion.text)}
             </p>
+
+            {/* 10-second hint countdown bar — resets on each question */}
+            {!showResult && (
+              <div className="mt-4 h-1 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  key={currentIdx}
+                  className="h-full origin-left rounded-full bg-amber-400"
+                  style={{ animation: `hint-drain ${HINT_DELAY}ms linear forwards` }}
+                />
+              </div>
+            )}
           </div>
 
           {/* Options */}
@@ -306,39 +356,42 @@ export function StudyShell({ questions, durationMins }: Props) {
             {currentQuestion.options
               .sort((a, b) => a.label.localeCompare(b.label))
               .map((option) => {
-                const isSelected = currentAnswer?.selectedId === option.id
-                const wasAnswered = !!currentAnswer
-                const isCorrect = option.is_correct
+                const isSelected   = currentAnswer?.selectedId === option.id
+                const isCorrect    = option.is_correct
+                const isAnimating  = animatingId === option.id
 
-                let optionStyle = "border-border bg-background hover:border-primary/40 hover:bg-primary/5"
-                if (wasAnswered) {
+                let optionStyle = "border-border bg-background hover:border-primary/40 hover:bg-primary/5 cursor-pointer active:scale-[0.99]"
+                if (showResult) {
                   if (isCorrect) {
-                    optionStyle = "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30"
+                    optionStyle = isRevealed && !currentAnswer
+                      ? "border-amber-400 bg-amber-50 dark:bg-amber-950/30"
+                      : "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30"
                   } else if (isSelected && !isCorrect) {
                     optionStyle = "border-red-500 bg-red-50 dark:bg-red-950/30"
                   } else {
-                    optionStyle = "border-border bg-background opacity-60"
+                    optionStyle = "border-border bg-background opacity-50"
                   }
-                } else {
-                  optionStyle = "border-border bg-background hover:border-primary/40 hover:bg-primary/5 cursor-pointer active:scale-[0.99]"
                 }
 
                 return (
                   <button
                     key={option.id}
                     onClick={() => selectOption(option.id)}
-                    disabled={wasAnswered}
+                    disabled={showResult}
                     className={cn(
                       "flex w-full items-start gap-3 rounded-2xl border-2 p-4 text-left transition-all",
-                      optionStyle
+                      optionStyle,
+                      isAnimating && (animatingCorrect ? "study-correct-anim" : "study-wrong-anim")
                     )}
                   >
                     {/* Label badge */}
                     <div className={cn(
                       "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-sm font-black transition-all",
-                      wasAnswered && isCorrect
+                      showResult && isCorrect && !isRevealed
                         ? "bg-emerald-500 text-white"
-                        : wasAnswered && isSelected && !isCorrect
+                        : showResult && isCorrect && isRevealed
+                        ? "bg-amber-400 text-white"
+                        : showResult && isSelected && !isCorrect
                         ? "bg-red-500 text-white"
                         : isSelected
                         ? "bg-primary text-primary-foreground"
@@ -352,11 +405,13 @@ export function StudyShell({ questions, durationMins }: Props) {
                       className="flex-1 pt-0.5 text-sm font-medium leading-relaxed"
                     />
 
-                    {/* Status icon */}
-                    {wasAnswered && isCorrect && (
+                    {showResult && isCorrect && !isRevealed && (
                       <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
                     )}
-                    {wasAnswered && isSelected && !isCorrect && (
+                    {showResult && isCorrect && isRevealed && !currentAnswer && (
+                      <Eye className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+                    )}
+                    {showResult && isSelected && !isCorrect && (
                       <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-500" />
                     )}
                   </button>
@@ -364,8 +419,21 @@ export function StudyShell({ questions, durationMins }: Props) {
               })}
           </div>
 
+          {/* "Show Answer" hint button — appears after 10 seconds */}
+          {showHint && !showResult && (
+            <div className="hint-appear flex justify-center">
+              <button
+                onClick={revealAnswer}
+                className="flex items-center gap-2 rounded-2xl border-2 border-amber-300 bg-amber-50 px-5 py-3 text-sm font-bold text-amber-700 shadow-sm transition-all hover:bg-amber-100 hover:border-amber-400 active:scale-[0.97] dark:bg-amber-950/30 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-900/40"
+              >
+                <Eye className="h-4 w-4" />
+                Show Answer
+              </button>
+            </div>
+          )}
+
           {/* Explanation — shown after answering */}
-          {currentAnswer && currentQuestion.explanation && (
+          {showResult && currentQuestion.explanation && (
             <div className="rounded-2xl border-2 border-primary/20 bg-primary/5 p-4 space-y-2">
               <div className="flex items-center gap-2">
                 <Lightbulb className="h-4 w-4 text-primary shrink-0" />
@@ -377,8 +445,7 @@ export function StudyShell({ questions, durationMins }: Props) {
             </div>
           )}
 
-          {/* No explanation note */}
-          {currentAnswer && !currentQuestion.explanation && (
+          {showResult && !currentQuestion.explanation && (
             <p className="text-xs text-muted-foreground text-center">No explanation available for this question.</p>
           )}
 
