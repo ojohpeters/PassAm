@@ -2,17 +2,10 @@
 
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getAppUser } from "@/lib/auth"
-import { todayWAT } from "@/lib/utils"
+import { todayWAT, getDrillTimeLimitMs } from "@/lib/utils"
 import type { ActionResult } from "@/types"
 
 const DRILL_COUNT = 30
-
-export function getTimeLimitMs(subjectName: string): number {
-  const n = subjectName.toLowerCase()
-  if (n.includes("chemistry")) return 15_000
-  if (n.includes("physics") || n.includes("mathematics") || n.includes("math")) return 20_000
-  return 10_000
-}
 
 export type DrillQuestion = {
   id: string
@@ -176,7 +169,7 @@ export async function getDailyDrill(): Promise<ActionResult<DrillSessionData>> {
       text: q.text,
       options: (q.options ?? []).sort((a: any, b: any) => a.label.localeCompare(b.label)),
       subject: q.subject ?? { name: "" },
-      timeLimitMs: getTimeLimitMs(q.subject?.name ?? ""),
+      timeLimitMs: getDrillTimeLimitMs(q.subject?.name ?? ""),
     }))
 
   return {
