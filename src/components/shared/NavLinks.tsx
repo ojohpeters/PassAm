@@ -2,12 +2,13 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Trophy, BarChart2, Calendar, UserCircle, MessageCircleHeart, Lightbulb, Users } from "lucide-react"
+import { LayoutDashboard, Trophy, BarChart2, Calendar, UserCircle, MessageCircleHeart, Lightbulb, Users, Zap } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const NAV = [
   { href: "/dashboard",   label: "Dashboard",   icon: LayoutDashboard },
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
+  { href: "/drill",       label: "Timed Drill", icon: Zap },
   { href: "/analytics",   label: "Analytics",   icon: BarChart2 },
   { href: "/daily-quiz",  label: "Daily Quiz",  icon: Calendar },
   { href: "/tips",        label: "Study Tips",  icon: Lightbulb },

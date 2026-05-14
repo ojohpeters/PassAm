@@ -19,7 +19,7 @@ function fmt(n: number): string {
   return s.length > 14 ? n.toExponential(4) : s
 }
 
-export function Calculator() {
+export function Calculator({ triggerClassName }: { triggerClassName?: string }) {
   const [open, setOpen] = useState(false)
   const [display, setDisplay] = useState("0")
   const [prev, setPrev] = useState<number | null>(null)
@@ -90,7 +90,7 @@ export function Calculator() {
   return (
     <>
       {/* ── Floating trigger ── */}
-      <div className="fixed bottom-20 right-4 z-40 md:bottom-8 md:right-6">
+      <div className={cn("fixed bottom-20 right-4 z-40 md:bottom-8 md:right-6", triggerClassName)}>
         <button
           onClick={() => setOpen((v) => !v)}
           aria-label="Open calculator"

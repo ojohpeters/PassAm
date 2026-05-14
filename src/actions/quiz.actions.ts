@@ -8,11 +8,72 @@ import type { ActionResult } from "@/types"
 
 const DAILY_QUIZ_COUNT = 10
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AdminClient = any
+
+async function getOrCreateQuizSeed(
+  admin: AdminClient,
+  schoolKey: string,
+  date: string,
+  subjectIds: string[]
+): Promise<string[]> {
+  const { data: existing } = await admin
+    .from("daily_question_seeds")
+    .select("question_ids")
+    .eq("school_key", schoolKey)
+    .eq("seed_date", date)
+    .eq("seed_type", "quiz")
+    .maybeSingle() as { data: { question_ids: string[] } | null }
+
+  if (existing) return existing.question_ids
+
+  let pool: { id: string }[] = []
+
+  if (schoolKey !== "GENERAL") {
+    const { data: school } = await admin
+      .from("schools")
+      .select("id")
+      .eq("abbreviation", schoolKey)
+      .maybeSingle() as { data: { id: string } | null }
+
+    if (school) {
+      const { data } = await admin.from("questions").select("id").eq("school_id", school.id).limit(500)
+      pool = data ?? []
+    }
+  }
+
+  if (pool.length === 0) {
+    let q = admin.from("questions").select("id").limit(500)
+    if (subjectIds.length > 0) q = q.in("subject_id", subjectIds)
+    const { data } = await q
+    pool = data ?? []
+  }
+
+  if (pool.length < DAILY_QUIZ_COUNT) return []
+
+  const dateInt = parseInt(date.replace(/-/g, ""), 10)
+  const shuffled = [...pool].sort((a, b) => {
+    const ha = parseInt(a.id.replace(/-/g, "").slice(0, 8), 16) ^ dateInt
+    const hb = parseInt(b.id.replace(/-/g, "").slice(0, 8), 16) ^ dateInt
+    return ha - hb
+  })
+
+  const selected = shuffled.slice(0, DAILY_QUIZ_COUNT).map((q) => q.id)
+
+  await admin.from("daily_question_seeds").upsert(
+    { school_key: schoolKey, seed_date: date, seed_type: "quiz", question_ids: selected },
+    { onConflict: "school_key,seed_date,seed_type" }
+  )
+
+  return selected
+}
+
 export async function getDailyQuiz() {
   const user = await getAppUser()
   if (!user) return { success: false, error: "UNAUTHORIZED" } as const
 
-  const admin = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const admin: AdminClient = createAdminClient()
   const today = todayWAT()
 
   const { data: existing } = await admin
@@ -34,22 +95,35 @@ export async function getDailyQuiz() {
 
   if (existing) return { success: true, data: shapeQuiz(existing) } as const
 
-  let poolQuery = admin
-    .from("questions")
-    .select(`id, subject_id, options(id, label, text), subject:subjects(name)`)
-    .limit(200)
+  // Determine school key from target_school abbreviation
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("target_school")
+    .eq("id", user.id)
+    .maybeSingle()
 
-  if (user.studentSubjectIds.length > 0) {
-    poolQuery = poolQuery.in("subject_id", user.studentSubjectIds)
+  const schoolKey = (profile?.target_school as string | null)?.trim().toUpperCase() || "GENERAL"
+
+  // Get fixed question IDs for this school today
+  const questionIds = await getOrCreateQuizSeed(admin, schoolKey, today, user.studentSubjectIds)
+
+  if (questionIds.length < DAILY_QUIZ_COUNT) {
+    return { success: false, error: "INTERNAL" } as const
   }
 
-  const { data: pool } = await poolQuery
+  // Fetch the actual question data
+  const { data: pool } = await admin
+    .from("questions")
+    .select("id, subject_id, options(id, label, text), subject:subjects(name), explanation")
+    .in("id", questionIds)
 
   if (!pool || pool.length < DAILY_QUIZ_COUNT) {
     return { success: false, error: "INTERNAL" } as const
   }
 
-  const selected = pool.sort(() => Math.random() - 0.5).slice(0, DAILY_QUIZ_COUNT)
+  // Keep seed order
+  const orderedPool = questionIds.map((id) => (pool as any[]).find((q) => q.id === id)).filter(Boolean)
+  const selected = orderedPool.slice(0, DAILY_QUIZ_COUNT)
 
   const { data: quiz, error } = await admin
     .from("daily_quizzes")
