@@ -57,7 +57,7 @@ export async function startExam(
 
   if (!subjectIds.length) return { success: false, error: "NO_SUBJECTS" }
 
-  const clampedTotal = Math.min(50, Math.max(10, totalQuestions))
+  const clampedTotal = Math.max(1, totalQuestions)
 
   const admin = createAdminClient()
 
@@ -157,7 +157,7 @@ export async function startGeneralExam(
 
   if (!generalSchool) return { success: false, error: "GENERAL_NOT_SETUP" }
 
-  const clampedTotal = Math.min(50, Math.max(10, totalQuestions))
+  const clampedTotal = Math.max(1, totalQuestions)
   const perSubject = Math.floor(clampedTotal / subjectIds.length)
   const selected: QuestionWithOptions[] = []
 
@@ -401,7 +401,7 @@ export async function getStudyQuestions(
   const selected: StudyQuestion[] = []
 
   for (const { subjectId, count } of configs) {
-    const take = Math.min(50, Math.max(1, count))
+    const take = Math.max(1, count)
 
     let q = admin
       .from("questions")

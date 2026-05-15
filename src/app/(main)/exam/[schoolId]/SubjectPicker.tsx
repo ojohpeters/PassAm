@@ -308,10 +308,10 @@ export function SubjectPicker({
                           <input
                             type="number" value={count}
                             onChange={(e) => setStudyCount(s.id, parseInt(e.target.value) || 1)}
-                            min={1} max={Math.min(50, available)}
+                            min={1} max={available}
                             className="w-14 rounded-lg border bg-background px-2 py-1 text-center text-sm font-black outline-none ring-emerald-500/40 focus:border-emerald-500 focus:ring-2"
                           />
-                          <button onClick={() => setStudyCount(s.id, count + 5)} disabled={count >= Math.min(50, available)}
+                          <button onClick={() => setStudyCount(s.id, count + 5)} disabled={count >= available}
                             className="flex h-7 w-7 items-center justify-center rounded-lg border bg-background text-muted-foreground hover:bg-muted disabled:opacity-40 active:scale-95">
                             <Plus className="h-3.5 w-3.5" />
                           </button>

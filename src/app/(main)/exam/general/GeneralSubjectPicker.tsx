@@ -4,13 +4,11 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { startGeneralExam } from "@/actions/exam.actions"
 import { toast } from "sonner"
-import { Check, Loader2, Zap, Globe } from "lucide-react"
+import { Check, Loader2, Zap, Globe, Minus, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 
 type Subject = { id: string; name: string }
-
-const Q_OPTIONS = [10, 20, 30, 40, 50]
 
 export function GeneralSubjectPicker({
   subjects,
@@ -107,23 +105,29 @@ export function GeneralSubjectPicker({
             <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Number of Questions</p>
             <span className="text-xs text-muted-foreground">{timeMins} min · {perSubject > 0 ? `~${perSubject}/subject` : "select subjects"}</span>
           </div>
-          <div className="grid grid-cols-5 gap-2">
-            {Q_OPTIONS.map((n) => (
-              <button
-                key={n}
-                onClick={() => setTotalQuestions(n)}
-                className={cn(
-                  "rounded-xl py-2.5 text-sm font-black transition-all active:scale-[0.96]",
-                  totalQuestions === n
-                    ? "bg-primary text-primary-foreground shadow-sm shadow-primary/30"
-                    : "border bg-muted/30 text-muted-foreground hover:border-primary/40 hover:text-foreground"
-                )}
-              >
-                {n}
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setTotalQuestions(Math.max(1, totalQuestions - 5))}
+              disabled={totalQuestions <= 1}
+              className="flex h-9 w-9 items-center justify-center rounded-xl border bg-background text-muted-foreground hover:bg-muted disabled:opacity-40 active:scale-95"
+            >
+              <Minus className="h-4 w-4" />
+            </button>
+            <input
+              type="number"
+              value={totalQuestions}
+              min={1}
+              onChange={(e) => setTotalQuestions(Math.max(1, parseInt(e.target.value) || 1))}
+              className="w-20 rounded-xl border bg-background px-3 py-2 text-center text-sm font-black outline-none ring-primary/40 focus:border-primary focus:ring-2"
+            />
+            <button
+              onClick={() => setTotalQuestions(totalQuestions + 5)}
+              className="flex h-9 w-9 items-center justify-center rounded-xl border bg-background text-muted-foreground hover:bg-muted active:scale-95"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
           </div>
-          <p className="text-xs text-muted-foreground">Default is 10. Max is 50.</p>
+          <p className="text-xs text-muted-foreground">Any number of questions — as many as are available.</p>
         </div>
 
         {/* Subject selector */}
