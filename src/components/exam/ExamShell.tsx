@@ -72,11 +72,20 @@ export function ExamShell({ attemptId, questions, timeLimitSecs }: Props) {
   const activeQuestions = activeGroup?.questions ?? []
   const localIndex     = Math.max(0, activeQuestions.findIndex(q => q.id === questions[currentIndex]?.id))
 
+  // Remember the last question visited in each subject tab
+  const lastVisitedPerSubject = useRef<Record<string, string>>({})
+  useEffect(() => {
+    const q = questions[currentIndex]
+    if (q) lastVisitedPerSubject.current[q.subject_id] = q.id
+  }, [currentIndex]) // eslint-disable-line
+
   function switchSubject(subjectId: string) {
     setActiveSubjectId(subjectId)
     const group = subjects.find(s => s.id === subjectId)
     if (!group) return
-    const target = group.questions.find(q => !answers[q.id]) ?? group.questions[0]
+    const lastId = lastVisitedPerSubject.current[subjectId]
+    const lastQ  = lastId ? group.questions.find(q => q.id === lastId) : null
+    const target = lastQ ?? group.questions.find(q => !answers[q.id]) ?? group.questions[0]
     if (target) {
       const gi = questions.findIndex(q => q.id === target.id)
       if (gi >= 0) goTo(gi)
