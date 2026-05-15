@@ -25,6 +25,7 @@ export function GeneralSubjectPicker({
     new Set(englishSubject ? [englishSubject.id] : [])
   )
   const [totalQuestions, setTotalQuestions] = useState(10)
+  const [qInput, setQInput] = useState("10")
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -107,21 +108,31 @@ export function GeneralSubjectPicker({
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setTotalQuestions(Math.max(1, totalQuestions - 5))}
+              onClick={() => { const n = Math.max(1, totalQuestions - 5); setTotalQuestions(n); setQInput(String(n)) }}
               disabled={totalQuestions <= 1}
               className="flex h-9 w-9 items-center justify-center rounded-xl border bg-background text-muted-foreground hover:bg-muted disabled:opacity-40 active:scale-95"
             >
               <Minus className="h-4 w-4" />
             </button>
             <input
-              type="number"
-              value={totalQuestions}
-              min={1}
-              onChange={(e) => setTotalQuestions(Math.max(1, parseInt(e.target.value) || 1))}
+              type="text"
+              inputMode="numeric"
+              value={qInput}
+              onChange={(e) => {
+                setQInput(e.target.value)
+                const n = parseInt(e.target.value)
+                if (!isNaN(n) && n >= 1) setTotalQuestions(n)
+              }}
+              onBlur={() => {
+                const n = parseInt(qInput)
+                const clamped = !isNaN(n) && n >= 1 ? n : 1
+                setTotalQuestions(clamped)
+                setQInput(String(clamped))
+              }}
               className="w-20 rounded-xl border bg-background px-3 py-2 text-center text-sm font-black outline-none ring-primary/40 focus:border-primary focus:ring-2"
             />
             <button
-              onClick={() => setTotalQuestions(totalQuestions + 5)}
+              onClick={() => { const n = totalQuestions + 5; setTotalQuestions(n); setQInput(String(n)) }}
               className="flex h-9 w-9 items-center justify-center rounded-xl border bg-background text-muted-foreground hover:bg-muted active:scale-95"
             >
               <Plus className="h-4 w-4" />

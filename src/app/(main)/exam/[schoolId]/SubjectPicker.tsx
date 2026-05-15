@@ -127,6 +127,7 @@ export function SubjectPicker({
   // ── Study mode state ────────────────────────────────────────────────────────
   const [studySelected, setStudySelected] = useState<Set<string>>(new Set())
   const [studyCounts, setStudyCounts] = useState<Record<string, number>>({})
+  const [countInputs, setCountInputs] = useState<Record<string, string>>({})
   const [timerEnabled, setTimerEnabled] = useState(false)
   const [timerMins, setTimerMins] = useState(30)
   const [studyYear, setStudyYear] = useState<number | null>(null)
@@ -145,7 +146,9 @@ export function SubjectPicker({
   }
   function setStudyCount(id: string, val: number) {
     const available = subjectCounts[id] ?? 999
-    setStudyCounts((prev) => ({ ...prev, [id]: Math.min(available, Math.max(1, val)) }))
+    const clamped = Math.min(available, Math.max(1, val))
+    setStudyCounts((prev) => ({ ...prev, [id]: clamped }))
+    setCountInputs((prev) => ({ ...prev, [id]: String(clamped) }))
   }
 
   function handleStartStudy() {
@@ -306,9 +309,18 @@ export function SubjectPicker({
                             <Minus className="h-3.5 w-3.5" />
                           </button>
                           <input
-                            type="number" value={count}
-                            onChange={(e) => setStudyCount(s.id, parseInt(e.target.value) || 1)}
-                            min={1} max={available}
+                            type="text"
+                            inputMode="numeric"
+                            value={countInputs[s.id] ?? String(count)}
+                            onChange={(e) => {
+                              setCountInputs((prev) => ({ ...prev, [s.id]: e.target.value }))
+                              const n = parseInt(e.target.value)
+                              if (!isNaN(n) && n >= 1) setStudyCount(s.id, n)
+                            }}
+                            onBlur={(e) => {
+                              const n = parseInt(e.target.value)
+                              setStudyCount(s.id, !isNaN(n) && n >= 1 ? n : 1)
+                            }}
                             className="w-14 rounded-lg border bg-background px-2 py-1 text-center text-sm font-black outline-none ring-emerald-500/40 focus:border-emerald-500 focus:ring-2"
                           />
                           <button onClick={() => setStudyCount(s.id, count + 5)} disabled={count >= available}
