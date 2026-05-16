@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { answerDailyQuizItem, submitDailyQuiz } from "@/actions/quiz.actions"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
+import { InlineText } from "@/lib/parseInline"
 
 type Option = { id: string; label: string; text: string }
 type QuizItem = {
@@ -80,7 +81,7 @@ export function DailyQuizShell({ quiz }: { quiz: Quiz }) {
         <span className="text-xs font-medium text-muted-foreground">
           {item.question.subject.name}
         </span>
-        <p className="mt-1 leading-relaxed">{item.question.text}</p>
+        <p className="mt-1 leading-relaxed"><InlineText text={item.question.text} /></p>
       </div>
 
       <div className="space-y-3">
@@ -102,7 +103,7 @@ export function DailyQuizShell({ quiz }: { quiz: Quiz }) {
               )}
             >
               <span className="font-mono font-bold">{opt.label}.</span>
-              <span>{opt.text}</span>
+              <span><InlineText text={opt.text} /></span>
               {isCorrectOpt && <span className="ml-auto text-green-700">✓</span>}
               {isSelectedWrong && <span className="ml-auto text-red-600">✗</span>}
             </button>
@@ -118,7 +119,7 @@ export function DailyQuizShell({ quiz }: { quiz: Quiz }) {
             : "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800/50 dark:bg-amber-950/40 dark:text-amber-100"
         )}>
           <p className="mb-1 text-xs font-bold uppercase tracking-wide opacity-70">Explanation</p>
-          <p className="leading-relaxed">{item.question.explanation}</p>
+          <p className="leading-relaxed"><InlineText text={item.question.explanation!} /></p>
         </div>
       )}
 

@@ -2,6 +2,7 @@ import { getAttemptResult } from "@/actions/exam.actions"
 import { redirect } from "next/navigation"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
+import { InlineText } from "@/lib/parseInline"
 
 export default async function ResultsPage({
   params,
@@ -43,7 +44,7 @@ export default async function ResultsPage({
               )}
             >
               <p className="text-sm font-medium">
-                Q{i + 1}. {a.question.text}
+                Q{i + 1}. <InlineText text={a.question.text} />
               </p>
               <div className="mt-2 space-y-1 text-sm">
                 {a.question.options.map((opt: { id: string; label: string; text: string; isCorrect: boolean }) => {
@@ -58,7 +59,7 @@ export default async function ResultsPage({
                       )}
                     >
                       <span className="font-mono">{opt.label}.</span>
-                      <span>{opt.text}</span>
+                      <span><InlineText text={opt.text} /></span>
                       {opt.isCorrect && (
                         <span className="ml-auto text-xs font-normal text-green-600">✓ Correct</span>
                       )}
@@ -74,7 +75,7 @@ export default async function ResultsPage({
               )}
               {a.question.explanation && (
                 <p className="mt-3 rounded-md bg-white/60 p-2 text-xs text-muted-foreground">
-                  💡 {a.question.explanation}
+                  💡 <InlineText text={a.question.explanation} />
                 </p>
               )}
             </div>
