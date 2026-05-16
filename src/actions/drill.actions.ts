@@ -2,7 +2,7 @@
 
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getAppUser } from "@/lib/auth"
-import { todayWAT, getDrillTimeLimitMs } from "@/lib/utils"
+import { todayWAT, getDrillTimeLimitMs, seededShuffle } from "@/lib/utils"
 import type { ActionResult } from "@/types"
 
 const DRILL_COUNT = 30
@@ -79,14 +79,21 @@ async function getOrCreateSeed(
 
   if (pool.length === 0) return []
 
-  // Deterministic shuffle: XOR id prefix with date integer
-  const dateInt = parseInt(date.replace(/-/g, ""), 10)
-  const shuffled = [...pool].sort((a, b) => {
-    const ha = parseInt(a.id.replace(/-/g, "").slice(0, 8), 16) ^ dateInt
-    const hb = parseInt(b.id.replace(/-/g, "").slice(0, 8), 16) ^ dateInt
-    return ha - hb
-  })
+  // Exclude questions used in the last 7 days to avoid repeats
+  const { data: recentSeeds } = await admin
+    .from("daily_question_seeds")
+    .select("question_ids")
+    .eq("school_key", schoolKey)
+    .eq("seed_type", type)
+    .neq("seed_date", date)
+    .order("seed_date", { ascending: false })
+    .limit(7) as { data: { question_ids: string[] }[] | null }
 
+  const recentIds = new Set((recentSeeds ?? []).flatMap((s) => s.question_ids))
+  const freshPool = pool.filter((q) => !recentIds.has(q.id))
+  const sourcePool = freshPool.length >= count ? freshPool : pool
+
+  const shuffled = seededShuffle(sourcePool, schoolKey, date)
   const selected = shuffled.slice(0, count).map((q) => q.id)
 
   await admin.from("daily_question_seeds").upsert(

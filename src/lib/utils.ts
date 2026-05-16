@@ -20,6 +20,34 @@ export function getDrillTimeLimitMs(subjectName: string): number {
   return 10_000
 }
 
+/**
+ * Seeded Fisher-Yates shuffle. Seed is derived from schoolKey + date so the
+ * same pair always produces the same order, but different days produce
+ * completely different orderings (unlike the previous XOR-sort which barely
+ * changed day-to-day because dateInt << UUID prefix values).
+ */
+export function seededShuffle<T>(arr: T[], schoolKey: string, date: string): T[] {
+  const str = `${schoolKey}:${date}`
+  let h = 2166136261
+  for (let i = 0; i < str.length; i++) {
+    h = Math.imul(h ^ str.charCodeAt(i), 16777619)
+    h >>>= 0
+  }
+  // mulberry32 PRNG
+  const rng = () => {
+    h = (h + 0x6d2b79f5) | 0
+    let t = Math.imul(h ^ (h >>> 15), 1 | h)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+  const result = [...arr]
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1))
+    ;[result[i], result[j]] = [result[j], result[i]]
+  }
+  return result
+}
+
 /** Returns "YYYY-MM-DD" in WAT (UTC+1) — matches the DailyQuiz.date column format */
 export function todayWAT(): string {
   const now = new Date()

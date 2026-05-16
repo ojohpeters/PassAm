@@ -2,7 +2,7 @@
 
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getAppUser } from "@/lib/auth"
-import { todayWAT } from "@/lib/utils"
+import { todayWAT, seededShuffle } from "@/lib/utils"
 import { updateStreak } from "./notification.actions"
 import type { ActionResult } from "@/types"
 
@@ -51,13 +51,21 @@ async function getOrCreateQuizSeed(
 
   if (pool.length < DAILY_QUIZ_COUNT) return []
 
-  const dateInt = parseInt(date.replace(/-/g, ""), 10)
-  const shuffled = [...pool].sort((a, b) => {
-    const ha = parseInt(a.id.replace(/-/g, "").slice(0, 8), 16) ^ dateInt
-    const hb = parseInt(b.id.replace(/-/g, "").slice(0, 8), 16) ^ dateInt
-    return ha - hb
-  })
+  // Exclude questions used in the last 7 days to avoid repeats
+  const { data: recentSeeds } = await admin
+    .from("daily_question_seeds")
+    .select("question_ids")
+    .eq("school_key", schoolKey)
+    .eq("seed_type", "quiz")
+    .neq("seed_date", date)
+    .order("seed_date", { ascending: false })
+    .limit(7) as { data: { question_ids: string[] }[] | null }
 
+  const recentIds = new Set((recentSeeds ?? []).flatMap((s) => s.question_ids))
+  const freshPool = pool.filter((q) => !recentIds.has(q.id))
+  const sourcePool = freshPool.length >= DAILY_QUIZ_COUNT ? freshPool : pool
+
+  const shuffled = seededShuffle(sourcePool, schoolKey, date)
   const selected = shuffled.slice(0, DAILY_QUIZ_COUNT).map((q) => q.id)
 
   await admin.from("daily_question_seeds").upsert(
