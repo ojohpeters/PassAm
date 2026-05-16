@@ -13,7 +13,10 @@ const TODOS_KEY = "prepiq:study-todos"
 type Stats = { sessions: number; focusSecs: number }
 
 function loadStats(): Stats {
-  try { return JSON.parse(localStorage.getItem(STATS_KEY()) ?? "{}") } catch { return { sessions: 0, focusSecs: 0 } }
+  try {
+    const raw = JSON.parse(localStorage.getItem(STATS_KEY()) ?? "{}")
+    return { sessions: raw.sessions ?? 0, focusSecs: raw.focusSecs ?? 0 }
+  } catch { return { sessions: 0, focusSecs: 0 } }
 }
 
 function saveStats(s: Stats) {

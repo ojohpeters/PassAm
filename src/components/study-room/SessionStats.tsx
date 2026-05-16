@@ -3,6 +3,7 @@
 import { Clock, Zap, CheckCircle2 } from "lucide-react"
 
 function formatFocus(secs: number) {
+  if (!secs || isNaN(secs) || secs < 0) return "0m"
   const m = Math.floor(secs / 60)
   if (m < 60) return `${m}m`
   const h = Math.floor(m / 60)
