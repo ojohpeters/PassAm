@@ -13,9 +13,9 @@ function load(): Todo[] {
   try { return JSON.parse(localStorage.getItem(KEY) ?? "[]") } catch { return [] }
 }
 
-export function TodoList() {
-  const [todos, setTodos]   = useState<Todo[]>([])
-  const [input, setInput]   = useState("")
+export function TodoList({ onToggle }: { onToggle?: () => void } = {}) {
+  const [todos, setTodos]     = useState<Todo[]>([])
+  const [input, setInput]     = useState("")
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => { setTodos(load()); setMounted(true) }, [])
@@ -32,6 +32,7 @@ export function TodoList() {
 
   function toggle(id: string) {
     setTodos((prev) => prev.map((t) => t.id === id ? { ...t, done: !t.done } : t))
+    setTimeout(() => onToggle?.(), 0)
   }
 
   function remove(id: string) {

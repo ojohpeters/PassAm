@@ -1,7 +1,6 @@
 import { getAppUser } from "@/lib/auth"
 import { redirect } from "next/navigation"
-import { PomodoroTimer } from "@/components/study-room/PomodoroTimer"
-import { TodoList } from "@/components/study-room/TodoList"
+import { StudyRoomClient } from "@/components/study-room/StudyRoomClient"
 import { BookOpen } from "lucide-react"
 
 export const metadata = { title: "Study Room — PrepIQ" }
@@ -11,9 +10,9 @@ export default async function StudyRoomPage() {
   if (!user) redirect("/login")
 
   return (
-    <div className="mx-auto max-w-lg space-y-6 p-4 pb-24 md:p-6">
+    <div className="mx-auto max-w-lg p-4 pb-24 md:p-6">
       {/* Header */}
-      <div className="flex items-center gap-3">
+      <div className="mb-6 flex items-center gap-3">
         <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-100 dark:bg-violet-950/40">
           <BookOpen className="h-6 w-6 text-violet-600 dark:text-violet-400" />
         </div>
@@ -23,8 +22,7 @@ export default async function StudyRoomPage() {
         </div>
       </div>
 
-      <PomodoroTimer />
-      <TodoList />
+      <StudyRoomClient />
     </div>
   )
 }

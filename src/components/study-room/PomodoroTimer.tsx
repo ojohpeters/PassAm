@@ -40,10 +40,10 @@ function playBeep() {
   } catch { /* AudioContext unavailable */ }
 }
 
-export function PomodoroTimer() {
-  const [phase, setPhase]     = useState<Phase>("work")
+export function PomodoroTimer({ onFocusComplete }: { onFocusComplete?: (secs: number) => void } = {}) {
+  const [phase, setPhase]       = useState<Phase>("work")
   const [timeLeft, setTimeLeft] = useState(PHASES.work.mins * 60)
-  const [running, setRunning] = useState(false)
+  const [running, setRunning]   = useState(false)
   const [sessions, setSessions] = useState(0)
 
   const phaseRef    = useRef<Phase>("work")
@@ -52,12 +52,13 @@ export function PomodoroTimer() {
 
   const totalTime = PHASES[phase].mins * 60
 
-  const advancePhase = useCallback(() => {
+  const advancePhase = useCallback((natural = false) => {
     playBeep()
     if (phaseRef.current === "work") {
       const n = sessionsRef.current + 1
       sessionsRef.current = n
       setSessions(n)
+      if (natural) onFocusComplete?.(PHASES.work.mins * 60)
       const next: Phase = n % 4 === 0 ? "longBreak" : "shortBreak"
       setPhase(next)
       setTimeLeft(PHASES[next].mins * 60)
@@ -65,7 +66,7 @@ export function PomodoroTimer() {
       setPhase("work")
       setTimeLeft(PHASES.work.mins * 60)
     }
-  }, [])
+  }, [onFocusComplete])
 
   // Tick
   useEffect(() => {
@@ -74,11 +75,11 @@ export function PomodoroTimer() {
     return () => clearInterval(id)
   }, [running])
 
-  // Auto-advance when timer hits 0
+  // Auto-advance when timer hits 0 (natural completion)
   useEffect(() => {
     if (timeLeft === 0 && running) {
       setRunning(false)
-      advancePhase()
+      advancePhase(true)
     }
   }, [timeLeft, running, advancePhase])
 
@@ -167,7 +168,7 @@ export function PomodoroTimer() {
           </button>
 
           <button
-            onClick={() => { setRunning(false); advancePhase() }}
+            onClick={() => { setRunning(false); advancePhase(false) }}
             className="flex h-10 w-10 items-center justify-center rounded-xl border text-muted-foreground hover:bg-muted transition-colors active:scale-95"
           >
             <SkipForward className="h-4 w-4" />
