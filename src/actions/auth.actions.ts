@@ -84,7 +84,9 @@ export async function requestPasswordReset(
   if (!email) return { error: "Email is required." }
 
   const supabase = await createClient()
-  const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
+  const siteUrl =
+    process.env.NEXT_PUBLIC_APP_URL ??
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000")
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${siteUrl}/auth/callback?next=/reset-password`,

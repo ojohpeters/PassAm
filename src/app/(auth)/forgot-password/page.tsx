@@ -1,13 +1,17 @@
 "use client"
 
 import { useState, useTransition } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { requestPasswordReset } from "@/actions/auth.actions"
 import Link from "next/link"
 import { Mail, ArrowRight, Loader2, CheckCircle2, ArrowLeft } from "lucide-react"
 
 export default function ForgotPasswordPage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const sent = searchParams.get("sent")
+
   const [isPending, startTransition] = useTransition()
-  const [done, setDone] = useState(false)
   const [error, setError] = useState("")
   const [email, setEmail] = useState("")
 
@@ -15,14 +19,16 @@ export default function ForgotPasswordPage() {
     e.preventDefault()
     setError("")
     const fd = new FormData(e.currentTarget)
+    const emailVal = (fd.get("email") as string)?.trim()
     startTransition(async () => {
       const res = await requestPasswordReset(fd)
       if (res?.error) { setError(res.error); return }
-      setDone(true)
+      router.push(`/forgot-password?sent=1&email=${encodeURIComponent(emailVal)}`)
     })
   }
 
-  if (done) {
+  if (sent) {
+    const displayEmail = searchParams.get("email") ?? email
     return (
       <div className="w-full max-w-md space-y-6 text-center">
         <div className="flex justify-center">
@@ -33,14 +39,15 @@ export default function ForgotPasswordPage() {
         <div className="space-y-2">
           <h1 className="text-2xl font-black tracking-tight">Check your inbox</h1>
           <p className="text-muted-foreground text-sm leading-relaxed">
-            We sent a password reset link to <span className="font-semibold text-foreground">{email}</span>.
+            We sent a password reset link to{" "}
+            {displayEmail && <span className="font-semibold text-foreground">{displayEmail}</span>}.
             Click it to set a new password — it expires in 1 hour.
           </p>
         </div>
         <p className="text-sm text-muted-foreground">
           Didn&apos;t get it? Check your spam folder or{" "}
           <button
-            onClick={() => setDone(false)}
+            onClick={() => router.push("/forgot-password")}
             className="font-semibold text-primary hover:underline"
           >
             try again

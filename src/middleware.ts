@@ -30,6 +30,14 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
+  // Catch auth codes that land on the homepage when Supabase falls back to the site URL
+  if (pathname === "/" && request.nextUrl.searchParams.has("code")) {
+    const url = request.nextUrl.clone()
+    url.pathname = "/auth/callback"
+    url.searchParams.set("next", "/reset-password")
+    return NextResponse.redirect(url)
+  }
+
   if (PUBLIC_PATHS.includes(pathname) || pathname.startsWith("/api/") || pathname.startsWith("/auth/")) {
     return supabaseResponse
   }
