@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
-const PUBLIC_PATHS = ["/", "/login", "/register", "/banned"]
+const PUBLIC_PATHS = ["/", "/login", "/register", "/banned", "/forgot-password", "/reset-password"]
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
@@ -30,7 +30,7 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  if (PUBLIC_PATHS.includes(pathname) || pathname.startsWith("/api/")) {
+  if (PUBLIC_PATHS.includes(pathname) || pathname.startsWith("/api/") || pathname.startsWith("/auth/")) {
     return supabaseResponse
   }
 
