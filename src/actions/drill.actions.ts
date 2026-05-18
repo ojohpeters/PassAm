@@ -157,10 +157,19 @@ export async function getDailyDrill(): Promise<ActionResult<DrillSessionData>> {
   if (questionIds.length === 0) return { success: false, error: "NO_QUESTIONS" }
 
   // fetch questions — options WITHOUT is_correct (hidden for leaderboard fairness)
-  const { data: rawQs } = await (admin as AdminClient)
+  // Try with passage join; fall back if the passages table/column doesn't exist yet
+  let { data: rawQs, error: rawErr } = await (admin as AdminClient)
     .from("questions")
     .select("id, text, subject:subjects(name), options(id, label, text), passage:passages(id, text, title)")
     .in("id", questionIds)
+
+  if (rawErr || !rawQs) {
+    const { data: fallback } = await (admin as AdminClient)
+      .from("questions")
+      .select("id, text, subject:subjects(name), options(id, label, text)")
+      .in("id", questionIds)
+    rawQs = (fallback ?? []).map((q: any) => ({ ...q, passage: null }))
+  }
 
   const { data: answers } = await (admin as AdminClient)
     .from("drill_answers")

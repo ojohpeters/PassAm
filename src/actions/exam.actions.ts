@@ -100,7 +100,17 @@ export async function startExam(
       .eq("subject_id", subjectId)
       .eq("is_bank_question", true)
 
-    const { data: pool } = await (year ? baseQuery.eq("year", year) : baseQuery)
+    let { data: pool, error: poolErr } = await (year ? baseQuery.eq("year", year) : baseQuery)
+
+    // Fallback: retry without passage join if table doesn't exist yet
+    if (poolErr || !pool) {
+      const fallbackQ = (admin as any)
+        .from("questions")
+        .select("id, text, image_url, explanation, year, school_id, subject_id, options(id, label, text), subject:subjects(name)")
+        .eq("school_id", schoolId).eq("subject_id", subjectId).eq("is_bank_question", true)
+      const { data: fb } = await (year ? fallbackQ.eq("year", year) : fallbackQ)
+      pool = (fb ?? []).map((q: any) => ({ ...q, passage: null }))
+    }
 
     if (!pool || pool.length === 0) {
       return { success: false, error: "INSUFFICIENT_QUESTIONS" }
@@ -166,7 +176,7 @@ export async function startGeneralExam(
 
   for (const subjectId of subjectIds) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: pool } = await (admin as any)
+    let { data: pool, error: poolErr2 } = await (admin as any)
       .from("questions")
       .select(`
         id, text, image_url, explanation, year, school_id, subject_id,
@@ -176,6 +186,14 @@ export async function startGeneralExam(
       `)
       .eq("subject_id", subjectId)
       .eq("is_bank_question", true)
+
+    if (poolErr2 || !pool) {
+      const { data: fb } = await (admin as any)
+        .from("questions")
+        .select("id, text, image_url, explanation, year, school_id, subject_id, options(id, label, text), subject:subjects(name)")
+        .eq("subject_id", subjectId).eq("is_bank_question", true)
+      pool = (fb ?? []).map((q: any) => ({ ...q, passage: null }))
+    }
 
     if (!pool || pool.length === 0) {
       return { success: false, error: "INSUFFICIENT_QUESTIONS" }
@@ -425,7 +443,17 @@ export async function getStudyQuestions(
 
     if (year) q = q.eq("year", year) as typeof q
 
-    const { data: pool } = await q
+    let { data: pool, error: poolErr3 } = await q
+
+    if (poolErr3 || !pool) {
+      let fq = (admin as any)
+        .from("questions")
+        .select("id, text, image_url, explanation, year, subject_id, options(id, label, text, is_correct), subject:subjects(name)")
+        .eq("school_id", schoolId).eq("subject_id", subjectId).eq("is_bank_question", true)
+      if (year) fq = fq.eq("year", year)
+      const { data: fb } = await fq
+      pool = (fb ?? []).map((q: any) => ({ ...q, passage: null }))
+    }
 
     if (!pool || pool.length === 0) continue
 
