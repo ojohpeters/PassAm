@@ -66,7 +66,7 @@ export function AnswerReviewList({ answers }: { answers: Answer[] }) {
 
           {/* Error tag picker — only for wrong/skipped answers */}
           {!a.isCorrect && (
-            <div className="mt-3 border-t pt-3">
+            <div className="mt-3">
               <ErrorTagPicker questionId={a.question.id} />
             </div>
           )}

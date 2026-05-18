@@ -100,7 +100,7 @@ export type ErrorStatRow = {
   question_id: string
   tags: string[]
   created_at: string
-  questions: { text: string; subjects: { name: string } }
+  question: { text: string; subject: { name: string } | null } | null
 }
 
 export async function getMyErrorStats(): Promise<ErrorStatRow[]> {
@@ -111,7 +111,7 @@ export async function getMyErrorStats(): Promise<ErrorStatRow[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data } = await (supabase as any)
     .from("question_error_tags")
-    .select("question_id, tags, created_at, questions!inner(text, subjects!inner(name))")
+    .select("question_id, tags, created_at, question:questions(text, subject:subjects(name))")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
 
@@ -133,7 +133,7 @@ export async function getErrorInsights(): Promise<ErrorInsights> {
 
   for (const row of rows) {
     for (const tag of row.tags) tagMap[tag] = (tagMap[tag] ?? 0) + 1
-    const subject = row.questions?.subjects?.name ?? "Unknown"
+    const subject = row.question?.subject?.name ?? "Unknown"
     subjectMap[subject] = (subjectMap[subject] ?? 0) + 1
   }
 

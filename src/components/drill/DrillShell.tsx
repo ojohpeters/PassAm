@@ -297,13 +297,13 @@ export function DrillShell({ drill }: { drill: DrillSessionData }) {
 
           {/* Error tag picker + Next button for wrong answers */}
           {phase === "result" && lastResult && !lastResult.isCorrect && (
-            <div className="rounded-2xl border bg-muted/20 p-4 space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-200">
+            <div className="space-y-3 animate-in fade-in slide-in-from-bottom-3 duration-300">
               <ErrorTagPicker questionId={currentQ.id} compact />
               <button
                 onClick={advance}
-                className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-primary py-2.5 text-sm font-bold text-primary-foreground hover:opacity-90 transition-opacity"
+                className="flex w-full items-center justify-center gap-1.5 rounded-2xl bg-primary py-3 text-sm font-bold text-primary-foreground hover:opacity-90 transition-opacity"
               >
-                Next →
+                Got it — Next Question →
               </button>
             </div>
           )}

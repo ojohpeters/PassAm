@@ -145,9 +145,9 @@ export default async function ErrorLogPage() {
           <div className="space-y-3">
             {insights.recent.map((row) => (
               <div key={row.question_id} className="rounded-xl border bg-muted/20 p-3 space-y-1.5">
-                <p className="text-sm leading-snug line-clamp-2">{row.questions?.text}</p>
+                <p className="text-sm leading-snug line-clamp-2">{row.question?.text}</p>
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-xs text-muted-foreground">{row.questions?.subjects?.name}</span>
+                  <span className="text-xs text-muted-foreground">{row.question?.subject?.name}</span>
                   <span className="text-muted-foreground/40 text-xs">·</span>
                   {row.tags.map((tagId) => {
                     const info = ERROR_TAGS.find((t) => t.id === tagId)
