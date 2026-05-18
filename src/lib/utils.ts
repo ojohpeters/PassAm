@@ -48,6 +48,16 @@ export function seededShuffle<T>(arr: T[], schoolKey: string, date: string): T[]
   return result
 }
 
+export function slugify(text: string) {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 80)
+}
+
 /** Returns "YYYY-MM-DD" in WAT (UTC+1) — matches the DailyQuiz.date column format */
 export function todayWAT(): string {
   const now = new Date()

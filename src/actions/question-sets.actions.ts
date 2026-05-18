@@ -19,16 +19,6 @@ const anyAdmin = (): any => createAdminClient()
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const anyClient = async (): Promise<any> => createClient()
 
-export function slugify(text: string) {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .trim()
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .slice(0, 80)
-}
-
 // ─── Admin: Set CRUD ──────────────────────────────────────────────────────────
 
 export async function createQuestionSet(data: {
