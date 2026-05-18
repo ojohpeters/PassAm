@@ -333,6 +333,7 @@ export async function getAttemptResult(attemptId: string) {
       isCorrect: a.is_correct,
       selectedOptionId: a.selected_option_id,
       question: {
+        id: a.question?.id ?? "",
         text: a.question?.text ?? "",
         explanation: a.question?.explanation ?? null,
         options: (a.question?.options ?? []).map((o: any) => ({

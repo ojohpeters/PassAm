@@ -9,6 +9,7 @@ import type { DrillQuestion, DrillSessionData } from "@/actions/drill.actions"
 
 import { InlineText } from "@/lib/parseInline"
 import { Calculator } from "@/components/shared/Calculator"
+import { ErrorTagPicker } from "@/components/shared/ErrorTagPicker"
 import { toast } from "sonner"
 
 const RESULT_DISPLAY_MS = 1_200
@@ -97,16 +98,21 @@ export function DrillShell({ drill }: { drill: DrillSessionData }) {
     setTotalAnswered((t) => t + 1)
     setTimeUsedMs((t) => t + timeTakenMs)
 
-    setTimeout(() => {
-      const next = queueIdx + 1
-      if (next >= pending.length) {
-        setPhase("done")
-        startTransition(async () => { await completeDrillSession(drill.sessionId) })
-      } else {
-        setQueueIdx(next)
-        setPhase("question")
-      }
-    }, RESULT_DISPLAY_MS)
+    // Correct: auto-advance after brief feedback. Wrong: pause for error tagging.
+    if (isCorrect) {
+      setTimeout(advance, RESULT_DISPLAY_MS)
+    }
+  }
+
+  function advance() {
+    const next = queueIdx + 1
+    if (next >= pending.length) {
+      setPhase("done")
+      startTransition(async () => { await completeDrillSession(drill.sessionId) })
+    } else {
+      setQueueIdx(next)
+      setPhase("question")
+    }
   }
 
   async function handleEnd() {
@@ -284,6 +290,19 @@ export function DrillShell({ drill }: { drill: DrillSessionData }) {
             <p className="text-center text-sm font-semibold text-muted-foreground animate-in fade-in">
               ⏰ Time&apos;s up!
             </p>
+          )}
+
+          {/* Error tag picker + Next button for wrong answers */}
+          {phase === "result" && lastResult && !lastResult.isCorrect && (
+            <div className="rounded-2xl border bg-muted/20 p-4 space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-200">
+              <ErrorTagPicker questionId={currentQ.id} compact />
+              <button
+                onClick={advance}
+                className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-primary py-2.5 text-sm font-bold text-primary-foreground hover:opacity-90 transition-opacity"
+              >
+                Next →
+              </button>
+            </div>
           )}
 
         </div>
