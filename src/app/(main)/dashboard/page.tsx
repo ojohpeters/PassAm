@@ -3,12 +3,13 @@ import { getAttemptHistory } from "@/actions/exam.actions"
 import { getStudentRank } from "@/actions/leaderboard.actions"
 import { getLatestTips } from "@/actions/tips.actions"
 import { isBrainstormHost } from "@/actions/brainstorm.actions"
+import { getReadinessData } from "@/actions/readiness.actions"
 import { getAppUser } from "@/lib/auth"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { formatDate, cn } from "@/lib/utils"
-import { BookOpen, TrendingUp, Flame, Trophy, ChevronRight, Globe, Lightbulb, ExternalLink, Radio } from "lucide-react"
+import { BookOpen, TrendingUp, Flame, Trophy, ChevronRight, Globe, Lightbulb, ExternalLink, Radio, GaugeCircle, CheckCircle2, AlertTriangle } from "lucide-react"
 import { NotificationBanner } from "@/components/dashboard/NotificationBanner"
 
 const SCHOOL_CFG: Record<string, { grad: string; abbrevColor: string }> = {
@@ -36,7 +37,7 @@ export default async function DashboardPage() {
   const admin = createAdminClient()
   const { data: schools } = await admin.from("schools").select("id, name, abbreviation").order("name")
 
-  const [stats, history, rank, { data: unreadNotifs }, latestTips, isHost] = await Promise.all([
+  const [stats, history, rank, { data: unreadNotifs }, latestTips, isHost, readiness] = await Promise.all([
     getDashboardStats(),
     getAttemptHistory(1, 5),
     getStudentRank(),
@@ -49,6 +50,7 @@ export default async function DashboardPage() {
       .limit(3),
     getLatestTips(2),
     isBrainstormHost(),
+    getReadinessData(),
   ])
 
   const firstName = user.name.split(" ")[0]
@@ -190,6 +192,49 @@ export default async function DashboardPage() {
           ))}
         </div>
       </div>
+
+      {/* ── Readiness Card ── */}
+      {readiness && readiness.hasData && (
+        <div className="dash-in" style={{ animationDelay: "180ms" }}>
+          <Link
+            href="/readiness"
+            className={cn(
+              "group flex items-center gap-4 rounded-2xl border-2 p-4 transition-all active:scale-[0.98]",
+              readiness.isOnTrack
+                ? "border-emerald-200 dark:border-emerald-800/60 bg-gradient-to-r from-emerald-50/80 to-teal-50/40 dark:from-emerald-950/30 dark:to-teal-950/20"
+                : "border-amber-200 dark:border-amber-800/60 bg-gradient-to-r from-amber-50/80 to-orange-50/40 dark:from-amber-950/30 dark:to-orange-950/20"
+            )}
+          >
+            <div className={cn(
+              "flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-2xl",
+              readiness.isOnTrack ? "bg-emerald-100 dark:bg-emerald-900/40" : "bg-amber-100 dark:bg-amber-900/40"
+            )}>
+              <span className={cn("text-2xl font-black leading-none tabular-nums", readiness.isOnTrack ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400")}>
+                {readiness.overallScore}
+              </span>
+              <span className={cn("text-[10px] font-bold", readiness.isOnTrack ? "text-emerald-500" : "text-amber-500")}>%</span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <GaugeCircle className={cn("h-3.5 w-3.5 shrink-0", readiness.isOnTrack ? "text-emerald-500" : "text-amber-500")} />
+                <p className={cn("text-xs font-bold uppercase tracking-wide", readiness.isOnTrack ? "text-emerald-700 dark:text-emerald-300" : "text-amber-700 dark:text-amber-300")}>
+                  Exam Readiness
+                </p>
+              </div>
+              <p className="text-sm font-bold leading-snug">
+                {readiness.schoolAbbreviation} · {readiness.subjects.length} subjects tracked
+              </p>
+              <div className="flex items-center gap-1 mt-0.5">
+                {readiness.isOnTrack
+                  ? <><CheckCircle2 className="h-3 w-3 text-emerald-500" /><span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">On Track</span></>
+                  : <><AlertTriangle className="h-3 w-3 text-amber-500" /><span className="text-xs text-amber-600 dark:text-amber-400 font-semibold">{readiness.threshold - readiness.overallScore}% to target</span></>
+                }
+              </div>
+            </div>
+            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
+          </Link>
+        </div>
+      )}
 
       {/* ── Practice Exam ── */}
       <div className="dash-in space-y-3" style={{ animationDelay: "220ms" }}>

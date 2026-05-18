@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Trophy, Calendar, UserCircle, MoreHorizontal, BarChart2, MessageCircleHeart, Globe, X, Lightbulb, Users, Zap, BookOpen, BookX, Target, Layers } from "lucide-react"
+import { LayoutDashboard, Trophy, Calendar, UserCircle, MoreHorizontal, BarChart2, MessageCircleHeart, Globe, X, Lightbulb, Users, Zap, BookOpen, BookX, Target, Layers, GaugeCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useState } from "react"
 
@@ -14,6 +14,7 @@ const MAIN_TABS = [
 ]
 
 const MORE_ITEMS = [
+  { href: "/readiness",    label: "Readiness",    icon: GaugeCircle         },
   { href: "/sets",         label: "Practice Sets", icon: Layers              },
   { href: "/drill",        label: "Timed Drill",  icon: Zap                 },
   { href: "/study-room",   label: "Study Room",   icon: BookOpen            },
