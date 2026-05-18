@@ -93,7 +93,8 @@ export async function startExam(
       .select(`
         id, text, image_url, explanation, year, school_id, subject_id,
         options(id, label, text),
-        subject:subjects(name)
+        subject:subjects(name),
+        passage:passages(id, text, title)
       `)
       .eq("school_id", schoolId)
       .eq("subject_id", subjectId)
@@ -170,7 +171,8 @@ export async function startGeneralExam(
       .select(`
         id, text, image_url, explanation, year, school_id, subject_id,
         options(id, label, text),
-        subject:subjects(name)
+        subject:subjects(name),
+        passage:passages(id, text, title)
       `)
       .eq("subject_id", subjectId)
       .eq("is_bank_question", true)
@@ -414,7 +416,8 @@ export async function getStudyQuestions(
       .select(`
         id, text, image_url, explanation, year, subject_id,
         options(id, label, text, is_correct),
-        subject:subjects(name)
+        subject:subjects(name),
+        passage:passages(id, text, title)
       `)
       .eq("school_id", schoolId)
       .eq("subject_id", subjectId)

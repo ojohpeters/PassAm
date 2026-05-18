@@ -2,6 +2,12 @@ export type ActionResult<T> =
   | { success: true; data: T }
   | { success: false; error: string }
 
+export type Passage = {
+  id: string
+  text: string
+  title: string | null
+}
+
 export type StudyQuestion = {
   id: string
   text: string
@@ -11,6 +17,7 @@ export type StudyQuestion = {
   subject_id: string
   subject: { name: string }
   options: { id: string; label: "A" | "B" | "C" | "D"; text: string; is_correct: boolean }[]
+  passage: Passage | null
 }
 
 export type QuestionWithOptions = {
@@ -23,6 +30,7 @@ export type QuestionWithOptions = {
   subject_id: string
   options: { id: string; label: "A" | "B" | "C" | "D"; text: string }[]
   subject: { name: string }
+  passage: Passage | null
 }
 
 export type ExamResult = {

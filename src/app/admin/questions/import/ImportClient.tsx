@@ -223,7 +223,7 @@ export function ImportClient({ schools }: { schools: School[] }) {
         <textarea
           value={csvText}
           onChange={(e) => { setCsvText(e.target.value); setParsed(null); setResult(null) }}
-          placeholder={`Paste CSV rows here — no header needed. Example:\n"What is the chemical symbol for water?","H2O","CO2","NaCl","O2",A,"Water is H2O — two hydrogen atoms bonded to one oxygen atom.",Chemistry,2021`}
+          placeholder={`Paste CSV rows here — no header needed.\nStandard: "What is the symbol for water?","H2O","CO2","NaCl","O2",A,"Explanation",Chemistry,2021\nPassage: "[PASSAGE: Read the following text...] Which of the following...","Option A","Option B","Option C","Option D",B,"Explanation",English Language,2022`}
           rows={10}
           className="w-full resize-y rounded-xl border bg-muted/30 px-4 py-3 font-mono text-xs leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/30"
           spellCheck={false}
@@ -300,7 +300,16 @@ export function ImportClient({ schools }: { schools: School[] }) {
                     >
                       <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{i + 1}</td>
                       <td className="px-4 py-3 font-medium leading-snug">
-                        <span className="line-clamp-2">{row.text}</span>
+                        {row.text.startsWith("[PASSAGE:") && (
+                          <span className="mb-1 inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700 dark:bg-blue-950/40 dark:text-blue-400">
+                            📖 Passage
+                          </span>
+                        )}
+                        <span className="line-clamp-2 block">
+                          {row.text.startsWith("[PASSAGE:")
+                            ? row.text.replace(/^\[PASSAGE:\s*[\s\S]+?\]\s*/, "") || row.text
+                            : row.text}
+                        </span>
                       </td>
                       <td className="px-4 py-3">
                         <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold text-primary">

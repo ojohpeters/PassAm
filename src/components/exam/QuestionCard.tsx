@@ -1,9 +1,57 @@
 "use client"
 
+import { useState } from "react"
 import { cn } from "@/lib/utils"
-import { Flag, ChevronLeft, ChevronRight } from "lucide-react"
-import type { QuestionWithOptions } from "@/types"
+import { Flag, ChevronLeft, ChevronRight, BookOpen, ChevronDown, ChevronUp } from "lucide-react"
+import type { QuestionWithOptions, Passage } from "@/types"
 import { parseInline, InlineText } from "@/lib/parseInline"
+
+function PassagePanel({ passage }: { passage: Passage }) {
+  const [expanded, setExpanded] = useState(true)
+  const isLong = passage.text.length > 600
+
+  return (
+    <div className="rounded-2xl border-2 border-blue-200 bg-blue-50/60 dark:border-blue-800/60 dark:bg-blue-950/20 overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-2 border-b border-blue-200/60 dark:border-blue-800/40 bg-blue-100/50 dark:bg-blue-900/20 px-4 py-2.5">
+        <div className="flex items-center gap-2">
+          <BookOpen className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+          <span className="text-xs font-black uppercase tracking-wider text-blue-700 dark:text-blue-300">
+            {passage.title ?? "Read the passage below"}
+          </span>
+        </div>
+        {isLong && (
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            className="flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 transition-colors"
+          >
+            {expanded ? <><ChevronUp className="h-3.5 w-3.5" /> Collapse</> : <><ChevronDown className="h-3.5 w-3.5" /> Expand</>}
+          </button>
+        )}
+      </div>
+
+      {/* Body */}
+      <div className={cn(
+        "px-4 py-3 overflow-hidden transition-all duration-300",
+        !expanded && "max-h-24"
+      )}>
+        <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-serif">
+          {passage.text}
+        </p>
+      </div>
+
+      {/* Fade + expand hint when collapsed */}
+      {isLong && !expanded && (
+        <button
+          onClick={() => setExpanded(true)}
+          className="flex w-full items-center justify-center gap-1 border-t border-blue-200/60 dark:border-blue-800/40 bg-gradient-to-t from-blue-50 dark:from-blue-950/20 py-2 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800"
+        >
+          <ChevronDown className="h-3.5 w-3.5" /> Read full passage
+        </button>
+      )}
+    </div>
+  )
+}
 
 // Detect and split Roman numeral list items embedded in question text.
 // e.g. "...organs: I. Liver II. Kidney III. Stomach Which..." →
@@ -125,6 +173,9 @@ export function QuestionCard({
           <span className="hidden sm:inline">{flagged ? "Flagged" : "Flag"}</span>
         </button>
       </div>
+
+      {/* ── Passage (comprehension) ── */}
+      {question.passage && <PassagePanel passage={question.passage} />}
 
       {/* ── Question image ── */}
       {question.image_url && (

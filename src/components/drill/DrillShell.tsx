@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { CheckCircle2, XCircle, Zap, X, Clock, Trophy } from "lucide-react"
+import { CheckCircle2, XCircle, Zap, X, Clock, Trophy, BookOpen, ChevronDown, ChevronUp } from "lucide-react"
 import { submitDrillAnswer, completeDrillSession } from "@/actions/drill.actions"
 import type { DrillQuestion, DrillSessionData } from "@/actions/drill.actions"
 
@@ -12,6 +12,38 @@ import { Calculator } from "@/components/shared/Calculator"
 import { ErrorTagPicker } from "@/components/shared/ErrorTagPicker"
 import { logWrongAnswer } from "@/actions/error-tags.actions"
 import { toast } from "sonner"
+
+function PassagePanel({ passage }: { passage: NonNullable<DrillQuestion["passage"]> }) {
+  const [expanded, setExpanded] = useState(true)
+  const isLong = passage.text.length > 400
+  return (
+    <div className="rounded-2xl border-2 border-blue-200 bg-blue-50/60 dark:border-blue-800/60 dark:bg-blue-950/20 overflow-hidden">
+      <div className="flex items-center justify-between gap-2 border-b border-blue-200/60 dark:border-blue-800/40 bg-blue-100/40 dark:bg-blue-900/20 px-3 py-2">
+        <div className="flex items-center gap-1.5">
+          <BookOpen className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+          <span className="text-[11px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-300">
+            {passage.title ?? "Read the passage"}
+          </span>
+        </div>
+        {isLong && (
+          <button onClick={() => setExpanded(v => !v)} className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 flex items-center gap-0.5">
+            {expanded ? <><ChevronUp className="h-3 w-3" />Less</> : <><ChevronDown className="h-3 w-3" />More</>}
+          </button>
+        )}
+      </div>
+      <div className={cn("px-3 py-2.5 overflow-hidden transition-all duration-300", !expanded && "max-h-20")}>
+        <p className="text-xs leading-relaxed text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-serif">
+          {passage.text}
+        </p>
+      </div>
+      {isLong && !expanded && (
+        <button onClick={() => setExpanded(true)} className="flex w-full items-center justify-center gap-1 border-t border-blue-200/60 py-1.5 text-[11px] font-semibold text-blue-600 dark:text-blue-400">
+          <ChevronDown className="h-3 w-3" /> Read full passage
+        </button>
+      )}
+    </div>
+  )
+}
 
 const RESULT_DISPLAY_MS = 1_200
 
@@ -227,6 +259,9 @@ export function DrillShell({ drill }: { drill: DrillSessionData }) {
               {(msLeft / 1000).toFixed(1)}s
             </div>
           </div>
+
+          {/* Passage (comprehension) */}
+          {currentQ.passage && <PassagePanel passage={currentQ.passage} />}
 
           {/* Question text */}
           <div className={cn(

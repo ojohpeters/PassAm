@@ -397,6 +397,10 @@ export async function bulkImportQuestions(
   let failed = 0
   let skipped = 0
 
+  // Passage tracking — reuse the same passage record for consecutive rows that share identical text
+  let currentPassageId: string | null = null
+  let lastSeenPassageText = ""
+
   for (const row of rows) {
     const subjectId = subjectMap.get(row.subject.trim().toLowerCase())
     if (!subjectId) { failed++; continue }
@@ -408,23 +412,55 @@ export async function bulkImportQuestions(
       continue
     }
 
+    // ── Passage detection ─────────────────────────────────────────────────────
+    // CSV format: [PASSAGE: <passage text>] <actual question text>
+    let questionText = row.text.trim()
+    let passageId: string | null = null
+
+    const passageMatch = questionText.match(/^\[PASSAGE:\s*([\s\S]+?)\]\s*([\s\S]*)$/)
+    if (passageMatch) {
+      const extractedPassage = passageMatch[1].trim()
+      questionText = passageMatch[2].trim() || questionText // fallback to raw if capture empty
+
+      if (extractedPassage !== lastSeenPassageText) {
+        // New passage — create a record
+        const { data: newPassage } = await (admin as any).from("passages").insert({
+          text: extractedPassage,
+          subject_id: subjectId,
+          school_id: schoolId,
+          year: row.year ? parseInt(row.year, 10) : null,
+        }).select("id").single()
+
+        currentPassageId = newPassage?.id ?? null
+        lastSeenPassageText = extractedPassage
+      }
+
+      passageId = currentPassageId
+    } else {
+      // Non-passage row — reset tracker
+      currentPassageId = null
+      lastSeenPassageText = ""
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     // Skip if this question already exists in the bank for this school
-    const norm = normalizeText(row.text)
+    const norm = normalizeText(questionText)
     if (existingNorm.has(norm)) { skipped++; continue }
-    existingNorm.add(norm) // prevent duplicates within the same batch too
+    existingNorm.add(norm)
 
     const yearNum = row.year ? parseInt(row.year, 10) : null
     const year = yearNum && yearNum >= 1990 && yearNum <= new Date().getFullYear() ? yearNum : null
 
-    const { data: question, error } = await admin
+    const { data: question, error } = await (admin as any)
       .from("questions")
       .insert({
-        text: row.text.trim(),
+        text: questionText,
         explanation: row.explanation?.trim() || null,
         year,
         school_id: schoolId,
         subject_id: subjectId,
         image_url: null,
+        passage_id: passageId,
       })
       .select("id")
       .single()

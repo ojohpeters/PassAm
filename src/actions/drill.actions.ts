@@ -13,6 +13,7 @@ export type DrillQuestion = {
   options: { id: string; label: string; text: string }[]
   subject: { name: string }
   timeLimitMs: number
+  passage: { id: string; text: string; title: string | null } | null
 }
 
 export type DrillSessionData = {
@@ -158,7 +159,7 @@ export async function getDailyDrill(): Promise<ActionResult<DrillSessionData>> {
   // fetch questions — options WITHOUT is_correct (hidden for leaderboard fairness)
   const { data: rawQs } = await (admin as AdminClient)
     .from("questions")
-    .select("id, text, subject:subjects(name), options(id, label, text)")
+    .select("id, text, subject:subjects(name), options(id, label, text), passage:passages(id, text, title)")
     .in("id", questionIds)
 
   const { data: answers } = await (admin as AdminClient)
@@ -178,6 +179,7 @@ export async function getDailyDrill(): Promise<ActionResult<DrillSessionData>> {
       options: (q.options ?? []).sort((a: any, b: any) => a.label.localeCompare(b.label)),
       subject: q.subject ?? { name: "" },
       timeLimitMs: getDrillTimeLimitMs(q.subject?.name ?? ""),
+      passage: q.passage ?? null,
     }))
 
   return {
