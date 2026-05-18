@@ -87,7 +87,8 @@ export async function startExam(
     const subjectId = subjectIds[i]
     const idealPerSubject = perSubjectCounts?.[subjectId] ?? Math.floor(totalTarget / subjectIds.length)
 
-    const baseQuery = admin
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const baseQuery = (admin as any)
       .from("questions")
       .select(`
         id, text, image_url, explanation, year, school_id, subject_id,
@@ -96,6 +97,7 @@ export async function startExam(
       `)
       .eq("school_id", schoolId)
       .eq("subject_id", subjectId)
+      .eq("is_bank_question", true)
 
     const { data: pool } = await (year ? baseQuery.eq("year", year) : baseQuery)
 
@@ -162,7 +164,8 @@ export async function startGeneralExam(
   const selected: QuestionWithOptions[] = []
 
   for (const subjectId of subjectIds) {
-    const { data: pool } = await admin
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: pool } = await (admin as any)
       .from("questions")
       .select(`
         id, text, image_url, explanation, year, school_id, subject_id,
@@ -170,6 +173,7 @@ export async function startGeneralExam(
         subject:subjects(name)
       `)
       .eq("subject_id", subjectId)
+      .eq("is_bank_question", true)
 
     if (!pool || pool.length === 0) {
       return { success: false, error: "INSUFFICIENT_QUESTIONS" }
@@ -404,7 +408,8 @@ export async function getStudyQuestions(
   for (const { subjectId, count } of configs) {
     const take = Math.max(1, count)
 
-    let q = admin
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let q = (admin as any)
       .from("questions")
       .select(`
         id, text, image_url, explanation, year, subject_id,
@@ -413,6 +418,7 @@ export async function getStudyQuestions(
       `)
       .eq("school_id", schoolId)
       .eq("subject_id", subjectId)
+      .eq("is_bank_question", true)
 
     if (year) q = q.eq("year", year) as typeof q
 

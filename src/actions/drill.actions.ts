@@ -64,6 +64,7 @@ async function getOrCreateSeed(
         .from("questions")
         .select("id")
         .eq("school_id", (school as { id: string }).id)
+        .eq("is_bank_question", true)
         .limit(1000)
       pool = data ?? []
     }
@@ -71,7 +72,7 @@ async function getOrCreateSeed(
 
   // Fallback to subject-filtered pool if school lookup returned nothing
   if (pool.length === 0) {
-    let q = admin.from("questions").select("id").limit(1000)
+    let q = admin.from("questions").select("id").eq("is_bank_question", true).limit(1000)
     if (subjectIds.length > 0) q = q.in("subject_id", subjectIds)
     const { data } = await q
     pool = data ?? []

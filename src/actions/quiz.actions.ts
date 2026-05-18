@@ -37,13 +37,13 @@ async function getOrCreateQuizSeed(
       .maybeSingle() as { data: { id: string } | null }
 
     if (school) {
-      const { data } = await admin.from("questions").select("id").eq("school_id", school.id).limit(500)
+      const { data } = await admin.from("questions").select("id").eq("school_id", school.id).eq("is_bank_question", true).limit(500)
       pool = data ?? []
     }
   }
 
   if (pool.length === 0) {
-    let q = admin.from("questions").select("id").limit(500)
+    let q = admin.from("questions").select("id").eq("is_bank_question", true).limit(500)
     if (subjectIds.length > 0) q = q.in("subject_id", subjectIds)
     const { data } = await q
     pool = data ?? []
