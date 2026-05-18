@@ -1,7 +1,6 @@
 "use server"
 
 import { createAdminClient } from "@/lib/supabase/admin"
-import { createClient } from "@/lib/supabase/server"
 import { getAppUser } from "@/lib/auth"
 
 export type SubjectReadiness = {
@@ -40,22 +39,21 @@ export async function getReadinessData(): Promise<ReadinessData | null> {
   if (!user) return null
 
   const admin = createAdminClient()
-  const supabase = await createClient()
 
-  // Get user's school
+  // Profile stores target_school as the school abbreviation (e.g. "UNILAG")
   const { data: profile } = await admin
     .from("profiles")
-    .select("school_id")
+    .select("target_school")
     .eq("id", user.id)
     .single()
 
-  const schoolId = (profile as any)?.school_id
-  if (!schoolId) return null
+  const targetSchool = (profile as any)?.target_school as string | null
+  if (!targetSchool) return null
 
   const { data: school } = await admin
     .from("schools")
     .select("id, name, abbreviation")
-    .eq("id", schoolId)
+    .eq("abbreviation", targetSchool)
     .single()
 
   if (!school) return null
@@ -65,12 +63,12 @@ export async function getReadinessData(): Promise<ReadinessData | null> {
     .from("exam_attempts")
     .select("id")
     .eq("user_id", user.id)
-    .eq("school_id", schoolId)
+    .eq("school_id", school.id)
     .not("completed_at", "is", null)
 
   if (!attempts?.length) {
     return {
-      schoolId,
+      schoolId: school.id,
       schoolName: school.name,
       schoolAbbreviation: school.abbreviation,
       overallScore: 0,
@@ -92,7 +90,7 @@ export async function getReadinessData(): Promise<ReadinessData | null> {
 
   if (!answers?.length) {
     return {
-      schoolId,
+      schoolId: school.id,
       schoolName: school.name,
       schoolAbbreviation: school.abbreviation,
       overallScore: 0,
@@ -136,7 +134,7 @@ export async function getReadinessData(): Promise<ReadinessData | null> {
   const overallScore  = totalAnswered > 0 ? Math.round((totalCorrect / totalAnswered) * 100) : 0
 
   return {
-    schoolId,
+    schoolId: school.id,
     schoolName: school.name,
     schoolAbbreviation: school.abbreviation,
     overallScore,
