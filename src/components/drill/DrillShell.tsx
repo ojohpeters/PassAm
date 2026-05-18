@@ -10,6 +10,7 @@ import type { DrillQuestion, DrillSessionData } from "@/actions/drill.actions"
 import { InlineText } from "@/lib/parseInline"
 import { Calculator } from "@/components/shared/Calculator"
 import { ErrorTagPicker } from "@/components/shared/ErrorTagPicker"
+import { logWrongAnswer } from "@/actions/error-tags.actions"
 import { toast } from "sonner"
 
 const RESULT_DISPLAY_MS = 1_200
@@ -98,9 +99,11 @@ export function DrillShell({ drill }: { drill: DrillSessionData }) {
     setTotalAnswered((t) => t + 1)
     setTimeUsedMs((t) => t + timeTakenMs)
 
-    // Correct: auto-advance after brief feedback. Wrong: pause for error tagging.
+    // Correct: auto-advance after brief feedback. Wrong: log + pause for error tagging.
     if (isCorrect) {
       setTimeout(advance, RESULT_DISPLAY_MS)
+    } else {
+      startTransition(async () => { await logWrongAnswer(currentQ.id) })
     }
   }
 

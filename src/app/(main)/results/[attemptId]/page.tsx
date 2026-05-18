@@ -1,4 +1,5 @@
 import { getAttemptResult } from "@/actions/exam.actions"
+import { logWrongAnswer } from "@/actions/error-tags.actions"
 import { redirect } from "next/navigation"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
@@ -13,6 +14,11 @@ export default async function ResultsPage({
   if (!result.success) redirect("/dashboard")
 
   const { score, totalQuestions, school, answers } = result.data
+
+  // Auto-log every wrong answer into the weak spots queue
+  await Promise.all(
+    answers.filter((a) => !a.isCorrect).map((a) => logWrongAnswer(a.question.id))
+  )
   const pct = Math.round((score / totalQuestions) * 100)
   const passed = pct >= 50
 

@@ -21,6 +21,36 @@ function sm2(intervalDays: number, ease: number, isCorrect: boolean) {
   return { interval: 1, ease: Math.max(1.3, ease - 0.2) }
 }
 
+// ─── Auto-log wrong answer (called immediately on wrong answer) ───────────────
+
+export async function logWrongAnswer(questionId: string): Promise<void> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any
+
+  const { data: existing } = await db
+    .from("question_error_tags")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("question_id", questionId)
+    .maybeSingle()
+
+  if (!existing) {
+    await db.from("question_error_tags").insert({
+      user_id: user.id,
+      question_id: questionId,
+      tags: [],
+      next_review_at: daysFromNow(3),
+      interval_days: 3,
+      ease: 2.5,
+      review_count: 0,
+    })
+  }
+}
+
 // ─── Tag saving ──────────────────────────────────────────────────────────────
 
 export async function saveErrorTags(
@@ -33,14 +63,6 @@ export async function saveErrorTags(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
-
-  if (tags.length === 0) {
-    await db.from("question_error_tags")
-      .delete()
-      .eq("user_id", user.id)
-      .eq("question_id", questionId)
-    return {}
-  }
 
   const { data: existing } = await db
     .from("question_error_tags")
@@ -56,7 +78,7 @@ export async function saveErrorTags(
       .eq("user_id", user.id)
       .eq("question_id", questionId)
   } else {
-    // New entry: schedule first review in 3 days
+    // Create entry with tags and SR schedule
     await db.from("question_error_tags")
       .insert({
         user_id: user.id,
