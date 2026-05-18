@@ -13,7 +13,13 @@ function load(): Todo[] {
   try { return JSON.parse(localStorage.getItem(KEY) ?? "[]") } catch { return [] }
 }
 
-export function TodoList({ onToggle }: { onToggle?: () => void } = {}) {
+export function TodoList({
+  onToggle,
+  inject,
+}: {
+  onToggle?: () => void
+  inject?: { tasks: string[]; version: number }
+} = {}) {
   const [todos, setTodos]     = useState<Todo[]>([])
   const [input, setInput]     = useState("")
   const [mounted, setMounted] = useState(false)
@@ -22,6 +28,18 @@ export function TodoList({ onToggle }: { onToggle?: () => void } = {}) {
   useEffect(() => {
     if (mounted) localStorage.setItem(KEY, JSON.stringify(todos))
   }, [todos, mounted])
+
+  // Inject tasks from the session planner (de-duped, prepended)
+  useEffect(() => {
+    if (!inject?.tasks.length) return
+    setTodos((prev) => {
+      const existingTexts = new Set(prev.map((t) => t.text))
+      const newItems = inject.tasks
+        .filter((text) => !existingTexts.has(text))
+        .map((text) => ({ id: crypto.randomUUID(), text, done: false }))
+      return newItems.length ? [...newItems, ...prev] : prev
+    })
+  }, [inject?.version]) // eslint-disable-line
 
   function add() {
     const text = input.trim()
