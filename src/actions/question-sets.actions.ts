@@ -235,11 +235,11 @@ export async function bulkImportToSet(
   schoolId: string,
   rows: SetImportRow[],
   opts: { inBank?: boolean; subjectIdOverride?: string } = {}
-): Promise<{ created: number; failed: number; skipped: number; newSubjects: string[] }> {
+): Promise<{ created: number; failed: number; skipped: number; newSubjects: string[]; firstFailReason: string | null }> {
   await requireAdmin()
   const db = anyAdmin()
 
-  if (!rows.length) return { created: 0, failed: 0, skipped: 0, newSubjects: [] }
+  if (!rows.length) return { created: 0, failed: 0, skipped: 0, newSubjects: [], firstFailReason: null }
 
   // Load subjects
   const { data: existingSubjects } = await db.from("subjects").select("id, name")
@@ -273,16 +273,18 @@ export async function bulkImportToSet(
   let sortOrder: number = (last?.sort_order ?? 0)
 
   let created = 0, failed = 0, skipped = 0
+  let firstFailReason: string | null = null
+  const fail = (reason: string) => { failed++; if (!firstFailReason) firstFailReason = reason }
 
   for (const row of rows) {
     const correctLabel = row.correct.trim().toUpperCase()
-    if (!["A", "B", "C", "D"].includes(correctLabel)) { failed++; continue }
-    if (!row.text?.trim() || !row.option_a?.trim() || !row.option_b?.trim() || !row.option_c?.trim() || !row.option_d?.trim()) { failed++; continue }
+    if (!["A", "B", "C", "D"].includes(correctLabel)) { fail(`bad correct: "${row.correct}"`); continue }
+    if (!row.text?.trim() || !row.option_a?.trim() || !row.option_b?.trim() || !row.option_c?.trim() || !row.option_d?.trim()) { fail("empty text/option"); continue }
 
     if (existingNorm.has(row.text.trim().toLowerCase())) { skipped++; continue }
 
     const subjectId = opts.subjectIdOverride ?? subjectMap.get(row.subject.trim().toLowerCase())
-    if (!subjectId) { failed++; continue }
+    if (!subjectId) { fail(`subject not found: "${row.subject}"`); continue }
 
     const { data: question, error: qErr } = await db
       .from("questions")
@@ -297,7 +299,7 @@ export async function bulkImportToSet(
       .select("id")
       .single()
 
-    if (qErr || !question) { failed++; continue }
+    if (qErr || !question) { fail(`question insert: ${qErr?.message}`); continue }
 
     await db.from("options").insert(
       ["A", "B", "C", "D"].map((l) => ({
@@ -321,7 +323,7 @@ export async function bulkImportToSet(
   }
 
   revalidatePath(`/admin/sets/${setId}`)
-  return { created, failed, skipped, newSubjects }
+  return { created, failed, skipped, newSubjects, firstFailReason }
 }
 
 // ─── Student: published sets ───────────────────────────────────────────────────

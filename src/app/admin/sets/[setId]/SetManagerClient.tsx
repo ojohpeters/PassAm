@@ -161,7 +161,7 @@ export function SetManagerClient({
   const [bulkSchoolId, setBulkSchoolId] = useState(set.school_id ?? "")
   const [bulkSubjectId, setBulkSubjectId] = useState("")
   const [bulkInBank, setBulkInBank] = useState(false)
-  const [bulkResult, setBulkResult] = useState<{ created: number; failed: number; skipped: number; newSubjects: string[] } | null>(null)
+  const [bulkResult, setBulkResult] = useState<{ created: number; failed: number; skipped: number; newSubjects: string[]; firstFailReason: string | null } | null>(null)
 
   function handleBulkImport() {
     if (!bulkSchoolId) { toast.error("Select a school first"); return }
@@ -407,8 +407,8 @@ export function SetManagerClient({
                 {bulkResult.newSubjects.length > 0 && (
                   <p className="text-xs opacity-80">New subjects created: {bulkResult.newSubjects.join(", ")}</p>
                 )}
-                {bulkResult.failed > 0 && (
-                  <p className="text-xs opacity-80">Failed rows may have DB errors — check server logs.</p>
+                {bulkResult.firstFailReason && (
+                  <p className="text-xs opacity-80 font-mono">First fail: {bulkResult.firstFailReason}</p>
                 )}
               </div>
             </div>
