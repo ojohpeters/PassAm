@@ -161,7 +161,7 @@ export function SetManagerClient({
   const [bulkSchoolId, setBulkSchoolId] = useState(set.school_id ?? "")
   const [bulkSubjectId, setBulkSubjectId] = useState("")
   const [bulkInBank, setBulkInBank] = useState(false)
-  const [bulkResult, setBulkResult] = useState<{ created: number; failed: number; skipped: number } | null>(null)
+  const [bulkResult, setBulkResult] = useState<{ created: number; failed: number; skipped: number; newSubjects: string[] } | null>(null)
 
   function handleBulkImport() {
     if (!bulkSchoolId) { toast.error("Select a school first"); return }
@@ -175,11 +175,14 @@ export function SetManagerClient({
         subjectIdOverride: bulkSubjectId || undefined,
       })
       setBulkResult(result)
+      if (result.newSubjects.length > 0) {
+        toast.info(`New subjects created: ${result.newSubjects.join(", ")}`)
+      }
       if (result.created > 0) {
         toast.success(`${result.created} question${result.created !== 1 ? "s" : ""} added to set`)
         setBulkCsv("")
       } else {
-        toast.error("No questions were created — check your CSV format")
+        toast.error("No questions were created — check school selection and CSV format")
       }
     })
   }
@@ -401,8 +404,11 @@ export function SetManagerClient({
               <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
               <div className="space-y-0.5">
                 <p className="font-semibold">{bulkResult.created} created · {bulkResult.skipped} skipped (duplicates) · {bulkResult.failed} failed</p>
+                {bulkResult.newSubjects.length > 0 && (
+                  <p className="text-xs opacity-80">New subjects created: {bulkResult.newSubjects.join(", ")}</p>
+                )}
                 {bulkResult.failed > 0 && (
-                  <p className="text-xs opacity-80">Failed rows may have invalid correct-answer labels, missing text, or unknown subject names.</p>
+                  <p className="text-xs opacity-80">Failed rows may have DB errors — check server logs.</p>
                 )}
               </div>
             </div>

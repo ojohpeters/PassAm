@@ -235,16 +235,28 @@ export async function bulkImportToSet(
   schoolId: string,
   rows: SetImportRow[],
   opts: { inBank?: boolean; subjectIdOverride?: string } = {}
-): Promise<{ created: number; failed: number; skipped: number }> {
+): Promise<{ created: number; failed: number; skipped: number; newSubjects: string[] }> {
   await requireAdmin()
   const db = anyAdmin()
 
-  if (!rows.length) return { created: 0, failed: 0, skipped: 0 }
+  if (!rows.length) return { created: 0, failed: 0, skipped: 0, newSubjects: [] }
 
   // Load subjects
   const { data: existingSubjects } = await db.from("subjects").select("id, name")
   const subjectMap = new Map<string, string>()
   for (const s of existingSubjects ?? []) subjectMap.set(s.name.toLowerCase().trim(), s.id)
+
+  // Auto-create any subjects referenced in the CSV that don't exist yet
+  const newSubjects: string[] = []
+  if (!opts.subjectIdOverride) {
+    const neededNames = [...new Set(rows.map(r => r.subject.trim()).filter(Boolean))]
+    for (const name of neededNames) {
+      if (!subjectMap.has(name.toLowerCase())) {
+        const { data: newS } = await db.from("subjects").insert({ name }).select("id, name").single()
+        if (newS) { subjectMap.set(newS.name.toLowerCase().trim(), newS.id); newSubjects.push(name) }
+      }
+    }
+  }
 
   // Build dedup set
   const { data: existingQs } = await db.from("questions").select("text").eq("school_id", schoolId)
@@ -309,7 +321,7 @@ export async function bulkImportToSet(
   }
 
   revalidatePath(`/admin/sets/${setId}`)
-  return { created, failed, skipped }
+  return { created, failed, skipped, newSubjects }
 }
 
 // ─── Student: published sets ───────────────────────────────────────────────────
