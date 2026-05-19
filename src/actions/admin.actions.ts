@@ -451,17 +451,21 @@ export async function bulkImportQuestions(
     const yearNum = row.year ? parseInt(row.year, 10) : null
     const year = yearNum && yearNum >= 1990 && yearNum <= new Date().getFullYear() ? yearNum : null
 
+    const qPayload: Record<string, unknown> = {
+      text: questionText,
+      explanation: row.explanation?.trim() || null,
+      year,
+      school_id: schoolId,
+      subject_id: subjectId,
+      image_url: null,
+    }
+    // Only include passage_id when a passage was actually created; omitting it
+    // keeps the import working on DBs where the passages migration hasn't run yet.
+    if (passageId) qPayload.passage_id = passageId
+
     const { data: question, error } = await (admin as any)
       .from("questions")
-      .insert({
-        text: questionText,
-        explanation: row.explanation?.trim() || null,
-        year,
-        school_id: schoolId,
-        subject_id: subjectId,
-        image_url: null,
-        passage_id: passageId,
-      })
+      .insert(qPayload)
       .select("id")
       .single()
 
