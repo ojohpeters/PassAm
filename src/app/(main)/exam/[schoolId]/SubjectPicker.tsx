@@ -6,7 +6,7 @@ import { startExam } from "@/actions/exam.actions"
 import { toast } from "sonner"
 import {
   BookOpen, CalendarDays, Check, Clock, ChevronDown, ChevronLeft,
-  Loader2, Lock, Zap, LayoutGrid, Minus, Plus, Timer, Trophy,
+  Loader2, Zap, Minus, Plus, Timer, Trophy,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -19,9 +19,7 @@ type Props = {
   subjects: Subject[]
   subjectCounts: Record<string, number>
   availableYears: number[]
-  requiredSubjectIds: string[]
-  adminDurationMins: number | null
-  adminSubjectCounts: Record<string, number>
+  adminNote: string | null
 }
 
 const PRESETS = [
@@ -39,7 +37,7 @@ const SCHOOL_COLORS: Record<string, string> = {
   AFIT:    "from-rose-600 to-rose-900",
 }
 
-const Q_OPTIONS = [10, 20, 30, 40, 50]
+const Q_OPTIONS = [20, 40, 60, 100]
 const TIME_OPTIONS = [20, 30, 45, 60]
 
 export function SubjectPicker({
@@ -48,22 +46,11 @@ export function SubjectPicker({
   subjects,
   subjectCounts,
   availableYears,
-  requiredSubjectIds,
-  adminDurationMins,
-  adminSubjectCounts,
+  adminNote,
 }: Props) {
   const router = useRouter()
   const [mode, setMode] = useState<Mode>(null)
   const [loading, setLoading] = useState(false)
-
-  const isAdminConfigured = requiredSubjectIds.length > 0
-  const requiredSubjects = subjects.filter((s) => requiredSubjectIds.includes(s.id))
-  const adminTotalQuestions = isAdminConfigured
-    ? requiredSubjects.reduce(
-        (sum, s) => sum + (adminSubjectCounts[s.id] ?? Math.floor(40 / requiredSubjects.length)),
-        0
-      )
-    : 0
 
   const gradient = SCHOOL_COLORS[school.abbreviation] ?? "from-slate-600 to-slate-900"
 
@@ -72,8 +59,9 @@ export function SubjectPicker({
   const [selected, setSelected] = useState<Set<string>>(
     new Set(englishSubject ? [englishSubject.id] : [])
   )
-  const [totalQuestions, setTotalQuestions] = useState(10)
-  const [durationMins, setDurationMins] = useState(30)
+  const [totalQuestions, setTotalQuestions] = useState(40)
+  const [qInput, setQInput] = useState("40")
+  const [durationMins, setDurationMins] = useState(45)
   const [year, setYear] = useState<number | null>(null)
 
   function toggleMock(id: string) {
@@ -87,33 +75,27 @@ export function SubjectPicker({
     const ids = subjects.filter((s) => matchNames.includes(s.name)).map((s) => s.id)
     setSelected(new Set(ids))
   }
+  function setQ(val: number) {
+    const clamped = Math.min(200, Math.max(1, val))
+    setTotalQuestions(clamped)
+    setQInput(String(clamped))
+  }
 
   async function handleStartMock() {
+    if (selected.size < 1) { toast.error("Select at least 1 subject"); return }
     setLoading(true)
-    let subjectIds: string[]
-    let questionCount: number
-    let perSubjectCounts: Record<string, number> | undefined
-
-    if (isAdminConfigured) {
-      subjectIds = requiredSubjectIds
-      questionCount = adminTotalQuestions
-      perSubjectCounts = adminSubjectCounts
-    } else {
-      if (selected.size < 1) { setLoading(false); return }
-      subjectIds = Array.from(selected)
-      questionCount = totalQuestions
-    }
-
     const result = await startExam(
-      school.id, subjectIds, questionCount,
-      perSubjectCounts,
-      isAdminConfigured ? undefined : durationMins,
+      school.id,
+      Array.from(selected),
+      totalQuestions,
+      undefined,
+      durationMins,
       year ?? undefined
     )
     if (!result.success) {
       const msg =
         result.error === "INSUFFICIENT_QUESTIONS"
-          ? (year ? `No questions found for ${year} in one of your subjects. Try a different year or "All Years".` : "Not enough questions for one of the subjects.")
+          ? (year ? `No questions found for ${year} in one of your subjects. Try "All Years".` : "Not enough questions for one of the subjects.")
           : result.error === "NO_SUBJECTS"
           ? "Please select at least 1 subject."
           : "Failed to start exam — please try again."
@@ -411,69 +393,7 @@ export function SubjectPicker({
     )
   }
 
-  // ── Mock exam: admin-configured layout ──────────────────────────────────────
-  if (isAdminConfigured) {
-    const durationLabel = adminDurationMins ? `${adminDurationMins} min` : `${Math.round((adminTotalQuestions * 90) / 60)} min`
-
-    return (
-      <div className="min-h-full bg-background pb-12">
-        <BackHeader subtitle={`Mock Exam · ${adminTotalQuestions} questions · ${durationLabel}`} />
-
-        <div className="mx-auto max-w-lg space-y-5 px-4 pt-6 md:px-6">
-          <div className="rounded-2xl border bg-background p-5 space-y-4">
-            <div className="flex items-center gap-2">
-              <Lock className="h-4 w-4 text-primary shrink-0" />
-              <p className="text-sm font-bold">Exam subjects set by admin</p>
-            </div>
-            <div className="space-y-2">
-              {requiredSubjects.map((s) => {
-                const qCount = adminSubjectCounts[s.id] ?? Math.floor(adminTotalQuestions / requiredSubjects.length)
-                return (
-                  <div key={s.id} className="flex items-center gap-3 rounded-xl border-2 border-primary/20 bg-primary/5 px-4 py-3">
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary">
-                      <Check className="h-4 w-4 text-primary-foreground" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-primary">{s.name}</p>
-                      <p className="text-xs text-muted-foreground">{subjectCounts[s.id] ?? 0} available</p>
-                    </div>
-                    <span className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-xs font-bold text-primary">{qCount} Qs</span>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-
-          {availableYears.length > 0 && (
-            <YearSelect years={availableYears} value={year} onChange={setYear} />
-          )}
-
-          <div className="rounded-2xl border bg-amber-50/60 border-amber-200/60 px-4 py-3 text-xs text-amber-800 dark:bg-amber-950/20 dark:border-amber-800/40 dark:text-amber-300">
-            This is your school&apos;s official mock exam configuration. Subjects and question counts are set by your admin.
-          </div>
-
-          <button
-            onClick={handleStartMock}
-            disabled={loading}
-            className={cn(
-              "flex w-full items-center justify-center gap-2.5 rounded-2xl py-4 text-base font-black transition-all",
-              loading ? "cursor-not-allowed bg-muted text-muted-foreground"
-                : "bg-primary text-primary-foreground shadow-lg shadow-primary/30 hover:opacity-90 active:scale-[0.98]"
-            )}
-          >
-            {loading ? <><Loader2 className="h-5 w-5 animate-spin" /> Building your paper…</> : <><Zap className="h-5 w-5" /> Start Mock Exam</>}
-          </button>
-
-          <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{durationLabel}</span>
-            <span className="flex items-center gap-1"><LayoutGrid className="h-3 w-3" />{adminTotalQuestions} questions</span>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // ── Mock exam: free-pick layout ─────────────────────────────────────────────
+  // ── Mock exam layout ────────────────────────────────────────────────────────
   const selectedCount = selected.size
   const perSubject = selectedCount > 0 ? Math.floor(totalQuestions / selectedCount) : 0
   const canBegin = selectedCount >= 1
@@ -485,15 +405,31 @@ export function SubjectPicker({
 
       <div className="mx-auto max-w-lg space-y-6 px-4 pt-6 md:px-6">
 
+        {/* Admin recommendation note */}
+        {adminNote && (
+          <div className="flex items-start gap-3 rounded-2xl border border-amber-200/70 bg-amber-50/70 px-4 py-3 dark:border-amber-800/40 dark:bg-amber-950/20">
+            <span className="text-base shrink-0 mt-0.5">📌</span>
+            <div>
+              <p className="text-xs font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wide mb-0.5">
+                {school.abbreviation} standard format
+              </p>
+              <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed">{adminNote}</p>
+              <p className="text-[10px] text-amber-600/70 dark:text-amber-500/70 mt-1">
+                You can adjust freely below — this is just a guide.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Question count */}
         <div className="rounded-2xl border bg-background p-4 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Number of Questions</p>
             <span className="text-xs text-muted-foreground">{perSubject > 0 ? `~${perSubject}/subject` : "select subjects first"}</span>
           </div>
-          <div className="grid grid-cols-5 gap-2">
+          <div className="grid grid-cols-4 gap-2">
             {Q_OPTIONS.map((n) => (
-              <button key={n} onClick={() => setTotalQuestions(n)}
+              <button key={n} onClick={() => setQ(n)}
                 className={cn(
                   "rounded-xl py-2.5 text-sm font-black transition-all active:scale-[0.96]",
                   totalQuestions === n
@@ -503,6 +439,29 @@ export function SubjectPicker({
                 {n}
               </button>
             ))}
+          </div>
+          {/* Custom input */}
+          <div className="flex items-center gap-2 pt-1">
+            <button onClick={() => setQ(totalQuestions - 10)} disabled={totalQuestions <= 10}
+              className="flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground hover:bg-muted disabled:opacity-40 active:scale-95">
+              <Minus className="h-3.5 w-3.5" />
+            </button>
+            <input
+              type="text" inputMode="numeric"
+              value={qInput}
+              onChange={(e) => {
+                setQInput(e.target.value)
+                const n = parseInt(e.target.value)
+                if (!isNaN(n)) setQ(n)
+              }}
+              onBlur={() => { const n = parseInt(qInput); setQ(!isNaN(n) ? n : totalQuestions) }}
+              className="flex-1 rounded-xl border bg-background px-3 py-2 text-center text-sm font-black outline-none ring-primary/40 focus:border-primary focus:ring-2"
+            />
+            <button onClick={() => setQ(totalQuestions + 10)} disabled={totalQuestions >= 200}
+              className="flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground hover:bg-muted disabled:opacity-40 active:scale-95">
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+            <span className="text-xs text-muted-foreground shrink-0">questions (1–200)</span>
           </div>
         </div>
 
@@ -527,7 +486,6 @@ export function SubjectPicker({
               </button>
             ))}
           </div>
-          <p className="text-xs text-muted-foreground">Max 60 min — similar to actual POST-UTME.</p>
         </div>
 
         {/* Year */}
@@ -613,7 +571,7 @@ export function SubjectPicker({
 
         <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
           <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{durationMins} min timer</span>
-          <span className="flex items-center gap-1"><LayoutGrid className="h-3 w-3" />{totalQuestions} questions</span>
+          <span className="flex items-center gap-1"><Check className="h-3 w-3" />{totalQuestions} questions</span>
         </div>
       </div>
     </div>

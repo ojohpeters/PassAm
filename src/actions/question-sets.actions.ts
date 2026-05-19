@@ -219,6 +219,99 @@ export async function searchBankQuestions(params: {
   }))
 }
 
+// ─── Admin: Bulk import to set ────────────────────────────────────────────────
+
+export type SetImportRow = {
+  text: string
+  option_a: string; option_b: string; option_c: string; option_d: string
+  correct: string
+  explanation: string
+  subject: string
+  year?: string
+}
+
+export async function bulkImportToSet(
+  setId: string,
+  schoolId: string,
+  rows: SetImportRow[],
+  opts: { inBank?: boolean; subjectIdOverride?: string } = {}
+): Promise<{ created: number; failed: number; skipped: number }> {
+  await requireAdmin()
+  const db = anyAdmin()
+
+  if (!rows.length) return { created: 0, failed: 0, skipped: 0 }
+
+  // Load subjects
+  const { data: existingSubjects } = await db.from("subjects").select("id, name")
+  const subjectMap = new Map<string, string>()
+  for (const s of existingSubjects ?? []) subjectMap.set(s.name.toLowerCase().trim(), s.id)
+
+  // Build dedup set
+  const { data: existingQs } = await db.from("questions").select("text").eq("school_id", schoolId)
+  const existingNorm = new Set((existingQs ?? []).map((q: { text: string }) => q.text.trim().toLowerCase()))
+
+  // Get current max sort_order for this set
+  const { data: last } = await db
+    .from("question_set_questions")
+    .select("sort_order")
+    .eq("set_id", setId)
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  let sortOrder: number = (last?.sort_order ?? 0)
+
+  let created = 0, failed = 0, skipped = 0
+
+  for (const row of rows) {
+    const correctLabel = row.correct.trim().toUpperCase()
+    if (!["A", "B", "C", "D"].includes(correctLabel)) { failed++; continue }
+    if (!row.text?.trim() || !row.option_a?.trim() || !row.option_b?.trim() || !row.option_c?.trim() || !row.option_d?.trim()) { failed++; continue }
+
+    if (existingNorm.has(row.text.trim().toLowerCase())) { skipped++; continue }
+
+    const subjectId = opts.subjectIdOverride ?? subjectMap.get(row.subject.trim().toLowerCase())
+    if (!subjectId) { failed++; continue }
+
+    const { data: question, error: qErr } = await db
+      .from("questions")
+      .insert({
+        text: row.text.trim(),
+        explanation: row.explanation?.trim() || null,
+        year: row.year ? parseInt(row.year) || null : null,
+        school_id: schoolId,
+        subject_id: subjectId,
+        is_bank_question: opts.inBank ?? false,
+      })
+      .select("id")
+      .single()
+
+    if (qErr || !question) { failed++; continue }
+
+    await db.from("options").insert(
+      ["A", "B", "C", "D"].map((l) => ({
+        question_id: question.id,
+        label: l,
+        text: row[`option_${l.toLowerCase()}` as keyof SetImportRow]?.trim() ?? "",
+        is_correct: l === correctLabel,
+      }))
+    )
+
+    sortOrder++
+    await db.from("question_set_questions").insert({
+      set_id: setId,
+      question_id: question.id,
+      sort_order: sortOrder,
+      in_bank: opts.inBank ?? false,
+    })
+
+    existingNorm.add(row.text.trim().toLowerCase())
+    created++
+  }
+
+  revalidatePath(`/admin/sets/${setId}`)
+  return { created, failed, skipped }
+}
+
 // ─── Student: published sets ───────────────────────────────────────────────────
 
 export async function getPublishedSets(userSchoolId?: string | null) {

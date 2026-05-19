@@ -43,17 +43,25 @@ export default async function ExamStartPage({
   )
   const availableYears = Array.from(yearSet).sort((a, b) => b - a)
 
-  // Admin exam config for this school
+  // Admin exam config — used only to build a recommendation note for students
   const { data: cfg } = await admin
     .from("school_exam_config")
-    .select("total_questions, subject_question_counts, duration_mins, required_subject_ids")
+    .select("total_questions, duration_mins, required_subject_ids")
     .eq("school_id", school.id)
     .single()
 
-  const requiredSubjectIds: string[] = (cfg?.required_subject_ids as string[]) ?? []
-  const durationMins: number = cfg?.duration_mins ?? null as any
-  const configuredSubjectCounts: Record<string, number> =
-    (cfg?.subject_question_counts as Record<string, number>) ?? {}
+  let adminNote: string | null = null
+  if (cfg) {
+    const reqIds: string[] = (cfg?.required_subject_ids as string[]) ?? []
+    const parts: string[] = []
+    if (reqIds.length > 0) {
+      const names = availableSubjects.filter((s) => reqIds.includes(s.id)).map((s) => s.name)
+      if (names.length > 0) parts.push(names.join(", "))
+    }
+    if (cfg.total_questions) parts.push(`${cfg.total_questions} questions`)
+    if (cfg.duration_mins) parts.push(`${cfg.duration_mins} min`)
+    if (parts.length > 0) adminNote = parts.join(" · ")
+  }
 
   return (
     <SubjectPicker
@@ -62,9 +70,7 @@ export default async function ExamStartPage({
       subjects={availableSubjects}
       subjectCounts={subjectCounts}
       availableYears={availableYears}
-      requiredSubjectIds={requiredSubjectIds}
-      adminDurationMins={durationMins}
-      adminSubjectCounts={configuredSubjectCounts}
+      adminNote={adminNote}
     />
   )
 }

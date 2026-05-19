@@ -3,11 +3,50 @@
 import { useState, useTransition } from "react"
 import {
   createAndAddQuestion, addExistingQuestion, removeQuestionFromSet,
-  updateQuestionSet, searchBankQuestions,
+  updateQuestionSet, searchBankQuestions, bulkImportToSet, type SetImportRow,
 } from "@/actions/question-sets.actions"
 import { slugify, cn } from "@/lib/utils"
 import { toast } from "sonner"
-import { Plus, Trash2, Search, ChevronDown, ChevronUp, Eye, EyeOff, Database } from "lucide-react"
+import { Plus, Trash2, Search, ChevronDown, ChevronUp, Eye, EyeOff, Database, Upload, CheckCircle2 } from "lucide-react"
+
+function parseCSV(raw: string): string[][] {
+  const rows: string[][] = []
+  let cur = "", inQuotes = false
+  const fields: string[] = []
+  const push = () => { fields.push(cur.trim()); cur = "" }
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i], next = raw[i + 1]
+    if (inQuotes) {
+      if (ch === '"' && next === '"') { cur += '"'; i++ }
+      else if (ch === '"') inQuotes = false
+      else cur += ch
+    } else {
+      if (ch === '"') inQuotes = true
+      else if (ch === ',') push()
+      else if (ch === '\n' || (ch === '\r' && next === '\n')) {
+        if (ch === '\r') i++; push()
+        if (fields.some(f => f)) rows.push([...fields]); fields.length = 0
+      } else cur += ch
+    }
+  }
+  push(); if (fields.some(f => f)) rows.push([...fields])
+  return rows
+}
+
+function rowsToImport(rows: string[][]): { valid: SetImportRow[]; invalid: number } {
+  let data = rows
+  const HEADER = ["text", "question", "option_a", "option a", "correct"]
+  if (data[0]?.some(c => HEADER.includes(c.toLowerCase().trim()))) data = data.slice(1)
+  let invalid = 0; const valid: SetImportRow[] = []
+  for (const row of data) {
+    if (row.length < 6) { invalid++; continue }
+    const [text, option_a, option_b, option_c, option_d, correct, explanation = "", subject = "", year = ""] = row
+    if (!text?.trim() || !option_a?.trim() || !option_b?.trim() || !option_c?.trim() || !option_d?.trim()) { invalid++; continue }
+    if (!["a","b","c","d"].includes(correct?.trim().toLowerCase())) { invalid++; continue }
+    valid.push({ text: text.trim(), option_a: option_a.trim(), option_b: option_b.trim(), option_c: option_c.trim(), option_d: option_d.trim(), correct: correct.trim().toUpperCase(), explanation: explanation.trim(), subject: subject.trim(), year: year.trim() })
+  }
+  return { valid, invalid }
+}
 
 type School  = { id: string; name: string; abbreviation: string }
 type Subject = { id: string; name: string }
@@ -35,7 +74,7 @@ export function SetManagerClient({
   set: SetData; schools: School[]; subjects: Subject[]
 }) {
   const [, startTransition] = useTransition()
-  const [tab, setTab] = useState<"questions" | "create" | "from-bank" | "settings">("questions")
+  const [tab, setTab] = useState<"questions" | "create" | "bulk" | "from-bank" | "settings">("questions")
 
   // Create new question form
   const [form, setForm] = useState<FormState>({
@@ -117,9 +156,38 @@ export function SetManagerClient({
     })
   }
 
+  // Bulk import state
+  const [bulkCsv, setBulkCsv] = useState("")
+  const [bulkSchoolId, setBulkSchoolId] = useState(set.school_id ?? "")
+  const [bulkSubjectId, setBulkSubjectId] = useState("")
+  const [bulkInBank, setBulkInBank] = useState(false)
+  const [bulkResult, setBulkResult] = useState<{ created: number; failed: number; skipped: number } | null>(null)
+
+  function handleBulkImport() {
+    if (!bulkSchoolId) { toast.error("Select a school first"); return }
+    if (!bulkCsv.trim()) { toast.error("Paste CSV data first"); return }
+    const rows = parseCSV(bulkCsv.trim())
+    const { valid, invalid } = rowsToImport(rows)
+    if (valid.length === 0) { toast.error(`No valid rows found (${invalid} invalid)`); return }
+    startTransition(async () => {
+      const result = await bulkImportToSet(set.id, bulkSchoolId, valid, {
+        inBank: bulkInBank,
+        subjectIdOverride: bulkSubjectId || undefined,
+      })
+      setBulkResult(result)
+      if (result.created > 0) {
+        toast.success(`${result.created} question${result.created !== 1 ? "s" : ""} added to set`)
+        setBulkCsv("")
+      } else {
+        toast.error("No questions were created — check your CSV format")
+      }
+    })
+  }
+
   const TABS = [
     { id: "questions",  label: `Questions (${set.items.length})` },
     { id: "create",     label: "Create New" },
+    { id: "bulk",       label: "Bulk Import" },
     { id: "from-bank",  label: "Add from Bank" },
     { id: "settings",   label: "Settings" },
   ] as const
@@ -256,6 +324,95 @@ export function SetManagerClient({
             className="rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground hover:opacity-90 transition-opacity"
           >
             Add to Set
+          </button>
+        </div>
+      )}
+
+      {/* ── Bulk import tab ── */}
+      {tab === "bulk" && (
+        <div className="rounded-2xl border bg-background p-5 space-y-5">
+          <div>
+            <h2 className="font-bold">Bulk Import via CSV</h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              One question per row. Columns: <span className="font-mono">text, option_a, option_b, option_c, option_d, correct (A/B/C/D), explanation, subject, year</span>
+            </p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground">School *</label>
+              <select
+                value={bulkSchoolId}
+                onChange={(e) => setBulkSchoolId(e.target.value)}
+                className="w-full rounded-xl border bg-muted/30 px-3 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              >
+                <option value="">Select school</option>
+                {schools.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.abbreviation})</option>)}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground">Override subject (optional)</label>
+              <select
+                value={bulkSubjectId}
+                onChange={(e) => setBulkSubjectId(e.target.value)}
+                className="w-full rounded-xl border bg-muted/30 px-3 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              >
+                <option value="">Use subject column in CSV</option>
+                {subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground">CSV data *</label>
+            <textarea
+              value={bulkCsv}
+              onChange={(e) => { setBulkCsv(e.target.value); setBulkResult(null) }}
+              rows={12}
+              placeholder={`text,option_a,option_b,option_c,option_d,correct,explanation,subject,year\nWhat is 2+2?,1,2,3,4,D,,Mathematics,2023`}
+              className="w-full rounded-xl border bg-muted/30 px-3 py-2.5 text-xs font-mono outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 resize-y"
+            />
+          </div>
+
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={bulkInBank}
+              onChange={(e) => setBulkInBank(e.target.checked)}
+              className="h-4 w-4 rounded border-border accent-primary"
+            />
+            <div>
+              <span className="text-sm font-semibold flex items-center gap-1.5">
+                <Database className="h-3.5 w-3.5 text-primary" /> Also add to question bank
+              </span>
+              <span className="text-xs text-muted-foreground">
+                Questions will appear in drills and exams, not just this set
+              </span>
+            </div>
+          </label>
+
+          {bulkResult && (
+            <div className={cn(
+              "flex items-start gap-3 rounded-xl border px-4 py-3 text-sm",
+              bulkResult.created > 0
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800/40 dark:bg-emerald-950/20 dark:text-emerald-300"
+                : "border-red-200 bg-red-50 text-red-800 dark:border-red-800/40 dark:bg-red-950/20 dark:text-red-300"
+            )}>
+              <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
+              <div className="space-y-0.5">
+                <p className="font-semibold">{bulkResult.created} created · {bulkResult.skipped} skipped (duplicates) · {bulkResult.failed} failed</p>
+                {bulkResult.failed > 0 && (
+                  <p className="text-xs opacity-80">Failed rows may have invalid correct-answer labels, missing text, or unknown subject names.</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={handleBulkImport}
+            className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground hover:opacity-90 transition-opacity"
+          >
+            <Upload className="h-4 w-4" /> Import Questions
           </button>
         </div>
       )}
