@@ -598,18 +598,19 @@ function YearSelect({
       <div className="relative">
         <select
           value={value ?? ""}
-          onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
+          onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
           className="w-full appearance-none rounded-xl border bg-background px-3 py-2.5 pr-9 text-sm font-semibold text-foreground outline-none ring-primary/40 focus:border-primary focus:ring-2 transition-all"
         >
           <option value="">All Years</option>
           {years.map((y) => (
             <option key={y} value={y}>{y}</option>
           ))}
+          <option value="-1">No Year / Untagged</option>
         </select>
         <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
       </div>
       <p className="text-xs text-muted-foreground">
-        {value ? `Questions from ${value} only.` : "Questions from all available years."}
+        {value === -1 ? "Only questions with no year tag." : value ? `Questions from ${value} only.` : "Questions from all available years."}
       </p>
     </div>
   )

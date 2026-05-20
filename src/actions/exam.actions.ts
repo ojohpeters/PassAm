@@ -100,7 +100,11 @@ export async function startExam(
       .eq("subject_id", subjectId)
       .eq("is_bank_question", true)
 
-    let { data: pool, error: poolErr } = await (year ? baseQuery.eq("year", year) : baseQuery)
+    // year === -1 means "only untagged questions (null year)"
+    const applyYear = (q: any) =>
+      year === -1 ? q.is("year", null) : year ? q.eq("year", year) : q
+
+    let { data: pool, error: poolErr } = await applyYear(baseQuery)
 
     // Fallback: retry without passage join if table doesn't exist yet
     if (poolErr || !pool) {
@@ -108,7 +112,7 @@ export async function startExam(
         .from("questions")
         .select("id, text, image_url, explanation, year, school_id, subject_id, options(id, label, text), subject:subjects(name)")
         .eq("school_id", schoolId).eq("subject_id", subjectId).eq("is_bank_question", true)
-      const { data: fb } = await (year ? fallbackQ.eq("year", year) : fallbackQ)
+      const { data: fb } = await applyYear(fallbackQ)
       pool = (fb ?? []).map((q: any) => ({ ...q, passage: null }))
     }
 
@@ -441,7 +445,11 @@ export async function getStudyQuestions(
       .eq("subject_id", subjectId)
       .eq("is_bank_question", true)
 
-    if (year) q = q.eq("year", year) as typeof q
+    // year === -1 means "only untagged questions (null year)"
+    const applyYearStudy = (q: any) =>
+      year === -1 ? q.is("year", null) : year ? q.eq("year", year) : q
+
+    q = applyYearStudy(q)
 
     let { data: pool, error: poolErr3 } = await q
 
@@ -450,7 +458,7 @@ export async function getStudyQuestions(
         .from("questions")
         .select("id, text, image_url, explanation, year, subject_id, options(id, label, text, is_correct), subject:subjects(name)")
         .eq("school_id", schoolId).eq("subject_id", subjectId).eq("is_bank_question", true)
-      if (year) fq = fq.eq("year", year)
+      fq = applyYearStudy(fq)
       const { data: fb } = await fq
       pool = (fb ?? []).map((q: any) => ({ ...q, passage: null }))
     }
