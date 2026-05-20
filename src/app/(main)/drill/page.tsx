@@ -1,10 +1,10 @@
 import { getAppUser } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { getDailyDrill } from "@/actions/drill.actions"
 import { Zap } from "lucide-react"
 import Link from "next/link"
 import { todayWAT } from "@/lib/utils"
+import { DrillPickerClient } from "./DrillPickerClient"
 
 export const metadata = { title: "Timed Drill — PrepIQ" }
 
@@ -34,6 +34,9 @@ export default async function DrillPage() {
     .maybeSingle()
 
   const targetSchool = (profile?.target_school as string | null)?.trim().toUpperCase() || null
+
+  // All subjects for the picker
+  const { data: subjects } = await admin.from("subjects").select("id, name").order("name")
 
   type SessionRow = { id: string; score: number; total_answered: number; time_used_ms: number; completed_at: string | null; school_key: string }
   // Check today's session — new table, cast to any to bypass stale TS schema
@@ -107,17 +110,17 @@ export default async function DrillPage() {
         </div>
       )}
 
-      {/* School info + start */}
+      {/* School info + subject picker + start */}
       {!hasCompleted && (
-        <div className="rounded-2xl border bg-background p-5 space-y-4">
-          <div>
+        <div className="space-y-3">
+          <div className="rounded-2xl border bg-background px-4 py-3 space-y-1">
             <p className="text-sm font-bold">Your school</p>
             {targetSchool ? (
-              <p className="mt-1 text-xs text-muted-foreground">
-                Questions from <strong className="text-foreground">{targetSchool}</strong> — set in your profile.
+              <p className="text-xs text-muted-foreground">
+                Default questions from <strong className="text-foreground">{targetSchool}</strong> — or pick subjects below.
               </p>
             ) : (
-              <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+              <p className="text-xs text-amber-600 dark:text-amber-400">
                 No target school set — you&apos;ll see general questions.{" "}
                 <Link href="/profile" className="underline font-semibold">Set your school →</Link>
               </p>
@@ -133,13 +136,11 @@ export default async function DrillPage() {
             </div>
           )}
 
-          <Link
-            href="/drill/session"
-            className="flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-3.5 text-sm font-black text-white shadow-md shadow-orange-500/20 transition-all hover:bg-orange-400 active:scale-[0.98]"
-          >
-            <Zap className="h-4 w-4" />
-            {inProgress ? "Continue Drill" : "Start Today's Drill"}
-          </Link>
+          <DrillPickerClient
+            subjects={subjects ?? []}
+            inProgress={!!inProgress}
+            defaultSchoolKey={targetSchool}
+          />
         </div>
       )}
 

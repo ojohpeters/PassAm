@@ -8,11 +8,19 @@ import { Zap } from "lucide-react"
 export const metadata = { title: "Timed Drill — PrepIQ" }
 export const dynamic = "force-dynamic"
 
-export default async function DrillSessionPage() {
+export default async function DrillSessionPage({
+  searchParams,
+}: {
+  searchParams: { subjects?: string }
+}) {
   const user = await getAppUser()
   if (!user) redirect("/login")
 
-  const result = await getDailyDrill()
+  const subjectIds = searchParams.subjects
+    ? searchParams.subjects.split(",").filter(Boolean)
+    : undefined
+
+  const result = await getDailyDrill(subjectIds)
 
   if (!result.success) {
     if (result.error === "NO_QUESTIONS") {

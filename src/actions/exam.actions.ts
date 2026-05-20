@@ -112,9 +112,7 @@ export async function startExam(
       pool = (fb ?? []).map((q: any) => ({ ...q, passage: null }))
     }
 
-    if (!pool || pool.length === 0) {
-      return { success: false, error: "INSUFFICIENT_QUESTIONS" }
-    }
+    if (!pool || pool.length === 0) continue
 
     const seenIds = await getSeenQuestionIds(admin, user.id, subjectId, schoolId)
     const take = Math.min(idealPerSubject, pool.length)
@@ -122,6 +120,8 @@ export async function startExam(
       .slice(0, take) as unknown as QuestionWithOptions[]
     selected.push(...picked)
   }
+
+  if (selected.length === 0) return { success: false, error: "INSUFFICIENT_QUESTIONS" }
 
   const { data: attempt, error: attemptErr } = await admin
     .from("exam_attempts")

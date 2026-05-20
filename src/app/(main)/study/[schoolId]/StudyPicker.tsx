@@ -52,7 +52,7 @@ export function StudyPicker({ schoolId, schoolName, schoolAbbr, subjects, subjec
   }
 
   function setCount(id: string, val: number) {
-    const clamped = Math.min(50, Math.max(1, val))
+    const clamped = Math.max(1, val)
     setQuestionCounts((prev) => ({ ...prev, [id]: clamped }))
   }
 
@@ -174,12 +174,10 @@ export function StudyPicker({ schoolId, schoolName, schoolAbbr, subjects, subjec
                           value={count}
                           onChange={(e) => setCount(s.id, parseInt(e.target.value) || 1)}
                           min={1}
-                          max={Math.min(50, available)}
                           className="w-14 rounded-lg border bg-background px-2 py-1 text-center text-sm font-black outline-none ring-emerald-500/40 focus:border-emerald-500 focus:ring-2"
                         />
                         <button
                           onClick={() => setCount(s.id, count + 5)}
-                          disabled={count >= Math.min(50, available)}
                           className="flex h-7 w-7 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-all hover:bg-muted disabled:opacity-40 active:scale-95"
                         >
                           <Plus className="h-3.5 w-3.5" />

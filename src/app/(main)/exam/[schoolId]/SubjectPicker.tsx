@@ -76,7 +76,7 @@ export function SubjectPicker({
     setSelected(new Set(ids))
   }
   function setQ(val: number) {
-    const clamped = Math.min(200, Math.max(1, val))
+    const clamped = Math.max(1, val)
     setTotalQuestions(clamped)
     setQInput(String(clamped))
   }
@@ -127,8 +127,7 @@ export function SubjectPicker({
     })
   }
   function setStudyCount(id: string, val: number) {
-    const available = subjectCounts[id] ?? 999
-    const clamped = Math.min(available, Math.max(1, val))
+    const clamped = Math.max(1, val)
     setStudyCounts((prev) => ({ ...prev, [id]: clamped }))
     setCountInputs((prev) => ({ ...prev, [id]: String(clamped) }))
   }
@@ -305,7 +304,7 @@ export function SubjectPicker({
                             }}
                             className="w-14 rounded-lg border bg-background px-2 py-1 text-center text-sm font-black outline-none ring-emerald-500/40 focus:border-emerald-500 focus:ring-2"
                           />
-                          <button onClick={() => setStudyCount(s.id, count + 5)} disabled={count >= available}
+                          <button onClick={() => setStudyCount(s.id, count + 5)}
                             className="flex h-7 w-7 items-center justify-center rounded-lg border bg-background text-muted-foreground hover:bg-muted disabled:opacity-40 active:scale-95">
                             <Plus className="h-3.5 w-3.5" />
                           </button>
@@ -457,11 +456,11 @@ export function SubjectPicker({
               onBlur={() => { const n = parseInt(qInput); setQ(!isNaN(n) ? n : totalQuestions) }}
               className="flex-1 rounded-xl border bg-background px-3 py-2 text-center text-sm font-black outline-none ring-primary/40 focus:border-primary focus:ring-2"
             />
-            <button onClick={() => setQ(totalQuestions + 10)} disabled={totalQuestions >= 200}
+            <button onClick={() => setQ(totalQuestions + 10)}
               className="flex h-8 w-8 items-center justify-center rounded-lg border bg-background text-muted-foreground hover:bg-muted disabled:opacity-40 active:scale-95">
               <Plus className="h-3.5 w-3.5" />
             </button>
-            <span className="text-xs text-muted-foreground shrink-0">questions (1–200)</span>
+            <span className="text-xs text-muted-foreground shrink-0">questions</span>
           </div>
         </div>
 

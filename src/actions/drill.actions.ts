@@ -108,7 +108,7 @@ async function getOrCreateSeed(
 
 // ── exported actions ──────────────────────────────────────────────────────────
 
-export async function getDailyDrill(): Promise<ActionResult<DrillSessionData>> {
+export async function getDailyDrill(subjectIds?: string[]): Promise<ActionResult<DrillSessionData>> {
   const user = await getAppUser()
   if (!user) return { success: false, error: "UNAUTHORIZED" }
 
@@ -123,12 +123,18 @@ export async function getDailyDrill(): Promise<ActionResult<DrillSessionData>> {
 
   const schoolKey = ((profile as { target_school: string | null } | null)?.target_school ?? "").trim().toUpperCase() || "GENERAL"
 
-  // get/create session
+  // get/create session — for custom subject drills, append the subject set to the key
+  const sessionDate = today
+  const sessionSchoolKey = subjectIds?.length
+    ? `CUSTOM_${[...subjectIds].sort().join("_").slice(0, 60)}`
+    : schoolKey
+
   const { data: existing } = await (admin as AdminClient)
     .from("drill_sessions")
     .select("id, score, total_answered, time_used_ms, completed_at")
     .eq("user_id", user.id)
-    .eq("session_date", today)
+    .eq("session_date", sessionDate)
+    .eq("school_key", sessionSchoolKey)
     .maybeSingle() as { data: { id: string; score: number; total_answered: number; time_used_ms: number; completed_at: string | null } | null }
 
   let sessionId: string
@@ -146,15 +152,29 @@ export async function getDailyDrill(): Promise<ActionResult<DrillSessionData>> {
   } else {
     const { data: ns, error } = await (admin as AdminClient)
       .from("drill_sessions")
-      .insert({ user_id: user.id, school_key: schoolKey, session_date: today })
+      .insert({ user_id: user.id, school_key: sessionSchoolKey, session_date: sessionDate })
       .select("id")
       .single() as { data: { id: string } | null; error: unknown }
     if (error || !ns) return { success: false, error: "INTERNAL" }
     sessionId = (ns as { id: string }).id
   }
 
-  const questionIds = await getOrCreateSeed(admin, schoolKey, today, "drill", DRILL_COUNT, user.studentSubjectIds)
-  if (questionIds.length === 0) return { success: false, error: "NO_QUESTIONS" }
+  let questionIds: string[]
+  if (subjectIds && subjectIds.length > 0) {
+    // Custom subject drill — query randomly from selected subjects, no daily seed
+    const { data: qs } = await (admin as AdminClient)
+      .from("questions")
+      .select("id")
+      .in("subject_id", subjectIds)
+      .eq("is_bank_question", true)
+      .limit(500)
+    const pool = (qs ?? []) as { id: string }[]
+    if (pool.length === 0) return { success: false, error: "NO_QUESTIONS" }
+    questionIds = [...pool].sort(() => Math.random() - 0.5).slice(0, DRILL_COUNT).map((q) => q.id)
+  } else {
+    questionIds = await getOrCreateSeed(admin, schoolKey, today, "drill", DRILL_COUNT, user.studentSubjectIds)
+    if (questionIds.length === 0) return { success: false, error: "NO_QUESTIONS" }
+  }
 
   // fetch questions — options WITHOUT is_correct (hidden for leaderboard fairness)
   // Try with passage join; fall back if the passages table/column doesn't exist yet
