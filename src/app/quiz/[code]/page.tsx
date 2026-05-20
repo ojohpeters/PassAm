@@ -12,7 +12,7 @@ export default async function QuizLandingPage({ params }: Props) {
 
   if (!result.success) notFound()
 
-  const { id, title, description, code, items } = result.data
+  const { id, title, description, code, items, timeLimitMinutes, showCalculator } = result.data
 
   // Pre-fill name for authenticated users
   let prefillName = ""
@@ -44,6 +44,8 @@ export default async function QuizLandingPage({ params }: Props) {
         code={code}
         items={items}
         prefillName={prefillName}
+        timeLimitMinutes={timeLimitMinutes}
+        showCalculator={showCalculator}
       />
     </div>
   )

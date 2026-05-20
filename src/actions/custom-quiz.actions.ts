@@ -75,7 +75,7 @@ export async function getAdminQuiz(quizId: string) {
   const admin: AdminClient = createAdminClient()
   const { data: quiz, error } = await admin
     .from("custom_quizzes")
-    .select("id, title, description, code, is_active, created_at")
+    .select("id, title, description, code, is_active, time_limit_minutes, show_calculator, created_at")
     .eq("id", quizId)
     .single()
 
@@ -286,7 +286,7 @@ export async function getPublicQuiz(code: string) {
 
   const { data: quiz, error } = await admin
     .from("custom_quizzes")
-    .select("id, title, description, code, is_active")
+    .select("id, title, description, code, is_active, time_limit_minutes, show_calculator")
     .eq("code", code)
     .single()
 
@@ -306,6 +306,8 @@ export async function getPublicQuiz(code: string) {
       title: quiz.title as string,
       description: quiz.description as string | null,
       code: quiz.code as string,
+      timeLimitMinutes: (quiz.time_limit_minutes as number | null) ?? null,
+      showCalculator: (quiz.show_calculator as boolean) ?? false,
       items: (items ?? []) as { id: string; order_index: number; q_text: string; opt_a: string; opt_b: string; opt_c: string; opt_d: string; subject_label: string | null }[],
     },
   } as const
@@ -459,6 +461,63 @@ export async function getQuizAttemptResults(attemptId: string) {
       items: reviewItems,
     },
   } as const
+}
+
+// ── Admin: update quiz settings (time limit, calculator) ───────────────────
+
+export async function updateQuizSettings(
+  quizId: string,
+  timeLimitMinutes: number | null,
+  showCalculator: boolean
+) {
+  const user = await getAppUser()
+  if (!user || user.role !== "ADMIN") return { success: false, error: "UNAUTHORIZED" } as const
+
+  const admin: AdminClient = createAdminClient()
+  await admin
+    .from("custom_quizzes")
+    .update({ time_limit_minutes: timeLimitMinutes ?? null, show_calculator: showCalculator })
+    .eq("id", quizId)
+  revalidatePath(`/admin/quizzes/${quizId}`)
+  return { success: true } as const
+}
+
+// ── Admin: bulk add custom questions via CSV ────────────────────────────────
+
+export async function bulkAddCustomQuestionsToQuiz(
+  quizId: string,
+  rows: Array<{
+    text: string; optA: string; optB: string; optC: string; optD: string
+    correct: string; explanation?: string; subjectLabel?: string
+  }>
+) {
+  const user = await getAppUser()
+  if (!user || user.role !== "ADMIN") return { success: false, error: "UNAUTHORIZED" } as const
+
+  const admin: AdminClient = createAdminClient()
+  const { count: startIdx } = await admin
+    .from("custom_quiz_items")
+    .select("*", { count: "exact", head: true })
+    .eq("quiz_id", quizId)
+
+  const inserts = rows.map((row, i) => ({
+    quiz_id: quizId,
+    order_index: (startIdx ?? 0) + i,
+    source: "custom",
+    q_text: row.text,
+    opt_a: row.optA,
+    opt_b: row.optB,
+    opt_c: row.optC,
+    opt_d: row.optD,
+    correct: row.correct.toUpperCase(),
+    explanation: row.explanation ?? null,
+    subject_label: row.subjectLabel ?? null,
+  }))
+
+  const { error } = await admin.from("custom_quiz_items").insert(inserts)
+  if (error) return { success: false, error: "INTERNAL" } as const
+  revalidatePath(`/admin/quizzes/${quizId}`)
+  return { success: true, data: { count: rows.length } } as const
 }
 
 // ── Public: leaderboard ─────────────────────────────────────────────────────
