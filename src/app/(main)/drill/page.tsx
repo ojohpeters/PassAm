@@ -35,20 +35,23 @@ export default async function DrillPage() {
 
   const targetSchool = (profile?.target_school as string | null)?.trim().toUpperCase() || null
 
-  // Subjects that actually have bank questions (the drill pool)
+  // Subjects that actually have bank questions — count directly without join
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: bankRows } = await (admin as any)
     .from("questions")
-    .select("subject_id, subject:subjects(id, name)")
+    .select("subject_id")
     .eq("is_bank_question", true)
+    .limit(10000)
 
-  const subjectMap = new Map<string, { id: string; name: string }>()
+  const drillSubjectIds = new Set<string>()
   for (const row of bankRows ?? []) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const s = row.subject as any
-    if (s?.id && !subjectMap.has(s.id)) subjectMap.set(s.id, s)
+    if (row.subject_id) drillSubjectIds.add(row.subject_id)
   }
-  const subjects = Array.from(subjectMap.values()).sort((a, b) => a.name.localeCompare(b.name))
+  const drillIdList = Array.from(drillSubjectIds)
+  const { data: drillSubjectRows } = drillIdList.length > 0
+    ? await admin.from("subjects").select("id, name").in("id", drillIdList)
+    : { data: [] }
+  const subjects = (drillSubjectRows ?? []).sort((a, b) => a.name.localeCompare(b.name))
 
   type SessionRow = { id: string; score: number; total_answered: number; time_used_ms: number; completed_at: string | null; school_key: string }
   // Check today's session — new table, cast to any to bypass stale TS schema

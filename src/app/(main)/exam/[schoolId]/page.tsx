@@ -21,27 +21,33 @@ export default async function ExamStartPage({
 
   if (!school) redirect("/dashboard")
 
-  // Subjects and years derived from actual questions for this school
-  const { data: rows } = await admin
+  // Count questions per subject directly (no join — avoids null subject silently zeroing counts)
+  const { data: qRows } = await admin
     .from("questions")
-    .select("subject_id, year, subject:subjects(id, name)")
+    .select("subject_id, year")
     .eq("school_id", school.id)
+    .limit(10000)
 
-  const subjectMap = new Map<string, { id: string; name: string }>()
   const subjectCounts: Record<string, number> = {}
   const yearSet = new Set<number>()
-  for (const row of rows ?? []) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const s = row.subject as any
-    if (s?.id) {
-      if (!subjectMap.has(s.id)) subjectMap.set(s.id, s)
-      subjectCounts[s.id] = (subjectCounts[s.id] ?? 0) + 1
+  const usedSubjectIds = new Set<string>()
+  for (const row of qRows ?? []) {
+    if (row.subject_id) {
+      subjectCounts[row.subject_id] = (subjectCounts[row.subject_id] ?? 0) + 1
+      usedSubjectIds.add(row.subject_id)
     }
     if (row.year != null) yearSet.add(row.year)
   }
-  const availableSubjects = Array.from(subjectMap.values()).sort((a, b) =>
-    a.name.localeCompare(b.name)
-  )
+
+  // Fetch subject names for only the IDs that appear in questions for this school
+  const subjectIdList = Array.from(usedSubjectIds)
+  const { data: subjectRows } = subjectIdList.length > 0
+    ? await admin.from("subjects").select("id, name").in("id", subjectIdList)
+    : { data: [] }
+
+  const availableSubjects = (subjectRows ?? [])
+    .map((s) => ({ id: s.id, name: s.name }))
+    .sort((a, b) => a.name.localeCompare(b.name))
   const availableYears = Array.from(yearSet).sort((a, b) => b - a)
 
   // Admin exam config — used only to build a recommendation note for students
