@@ -38,7 +38,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  if (PUBLIC_PATHS.includes(pathname) || pathname.startsWith("/api/") || pathname.startsWith("/auth/")) {
+  if (PUBLIC_PATHS.includes(pathname) || pathname.startsWith("/api/") || pathname.startsWith("/auth/") || pathname.startsWith("/quiz/")) {
     return supabaseResponse
   }
 
