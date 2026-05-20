@@ -21,33 +21,38 @@ export default async function ExamStartPage({
 
   if (!school) redirect("/dashboard")
 
-  // Count questions per subject directly (no join — avoids null subject silently zeroing counts)
-  const { data: qRows } = await admin
-    .from("questions")
-    .select("subject_id, year")
-    .eq("school_id", school.id)
-    .limit(10000)
+  // Get all subjects, then count questions per subject using HEAD requests (same
+  // technique the admin page uses for per-school counts — bypasses PostgREST max_rows)
+  const { data: allSubjects } = await admin.from("subjects").select("id, name").order("name")
 
   const subjectCounts: Record<string, number> = {}
+  await Promise.all(
+    (allSubjects ?? []).map(async (s) => {
+      const { count } = await admin
+        .from("questions")
+        .select("*", { count: "exact", head: true })
+        .eq("school_id", school.id)
+        .eq("subject_id", s.id)
+      if (count && count > 0) subjectCounts[s.id] = count
+    })
+  )
+
+  const availableSubjects = (allSubjects ?? [])
+    .filter((s) => (subjectCounts[s.id] ?? 0) > 0)
+    .map((s) => ({ id: s.id, name: s.name }))
+
+  // Years — separate lightweight query for year filter dropdown
+  const { data: yearRows } = await admin
+    .from("questions")
+    .select("year")
+    .eq("school_id", school.id)
+    .not("year", "is", null)
+    .limit(10000)
+
   const yearSet = new Set<number>()
-  const usedSubjectIds = new Set<string>()
-  for (const row of qRows ?? []) {
-    if (row.subject_id) {
-      subjectCounts[row.subject_id] = (subjectCounts[row.subject_id] ?? 0) + 1
-      usedSubjectIds.add(row.subject_id)
-    }
+  for (const row of yearRows ?? []) {
     if (row.year != null) yearSet.add(row.year)
   }
-
-  // Fetch subject names for only the IDs that appear in questions for this school
-  const subjectIdList = Array.from(usedSubjectIds)
-  const { data: subjectRows } = subjectIdList.length > 0
-    ? await admin.from("subjects").select("id, name").in("id", subjectIdList)
-    : { data: [] }
-
-  const availableSubjects = (subjectRows ?? [])
-    .map((s) => ({ id: s.id, name: s.name }))
-    .sort((a, b) => a.name.localeCompare(b.name))
   const availableYears = Array.from(yearSet).sort((a, b) => b - a)
 
   // Admin exam config — used only to build a recommendation note for students

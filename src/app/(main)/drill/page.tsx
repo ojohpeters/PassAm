@@ -35,23 +35,22 @@ export default async function DrillPage() {
 
   const targetSchool = (profile?.target_school as string | null)?.trim().toUpperCase() || null
 
-  // Subjects that actually have bank questions — count directly without join
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: bankRows } = await (admin as any)
-    .from("questions")
-    .select("subject_id")
-    .eq("is_bank_question", true)
-    .limit(10000)
-
-  const drillSubjectIds = new Set<string>()
-  for (const row of bankRows ?? []) {
-    if (row.subject_id) drillSubjectIds.add(row.subject_id)
-  }
-  const drillIdList = Array.from(drillSubjectIds)
-  const { data: drillSubjectRows } = drillIdList.length > 0
-    ? await admin.from("subjects").select("id, name").in("id", drillIdList)
-    : { data: [] }
-  const subjects = (drillSubjectRows ?? []).sort((a, b) => a.name.localeCompare(b.name))
+  // Subjects with bank questions — HEAD count per subject bypasses PostgREST max_rows
+  const { data: allSubjectsForDrill } = await admin.from("subjects").select("id, name").order("name")
+  const drillSubjects: { id: string; name: string }[] = []
+  await Promise.all(
+    (allSubjectsForDrill ?? []).map(async (s) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { count } = await (admin as any)
+        .from("questions")
+        .select("*", { count: "exact", head: true })
+        .eq("is_bank_question", true)
+        .eq("subject_id", s.id)
+      if (count && count > 0) drillSubjects.push(s)
+    })
+  )
+  drillSubjects.sort((a, b) => a.name.localeCompare(b.name))
+  const subjects = drillSubjects
 
   type SessionRow = { id: string; score: number; total_answered: number; time_used_ms: number; completed_at: string | null; school_key: string }
   // Check today's session — new table, cast to any to bypass stale TS schema

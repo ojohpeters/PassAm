@@ -40,33 +40,26 @@ export default async function StudyPickerPage({
     schoolAbbr = school.abbreviation
   }
 
-  // Count questions per subject directly (no join — avoids null subject silently zeroing counts)
-  const { data: qRows } = await admin
-    .from("questions")
-    .select("subject_id")
-    .eq("school_id", schoolId)
-    .limit(10000)
+  // Get all subjects, then count questions per subject using HEAD requests
+  const { data: allSubjects } = await admin.from("subjects").select("id, name").order("name")
 
   const subjectCounts: Record<string, number> = {}
-  const usedSubjectIds = new Set<string>()
-  for (const row of qRows ?? []) {
-    if (row.subject_id) {
-      subjectCounts[row.subject_id] = (subjectCounts[row.subject_id] ?? 0) + 1
-      usedSubjectIds.add(row.subject_id)
-    }
-  }
+  await Promise.all(
+    (allSubjects ?? []).map(async (s) => {
+      const { count } = await admin
+        .from("questions")
+        .select("*", { count: "exact", head: true })
+        .eq("school_id", schoolId)
+        .eq("subject_id", s.id)
+      if (count && count > 0) subjectCounts[s.id] = count
+    })
+  )
 
-  const subjectIdList = Array.from(usedSubjectIds)
-  if (!subjectIdList.length) redirect("/study")
-
-  const { data: subjectRows } = await admin
-    .from("subjects")
-    .select("id, name")
-    .in("id", subjectIdList)
-
-  const availableSubjects = (subjectRows ?? [])
+  const availableSubjects = (allSubjects ?? [])
+    .filter((s) => (subjectCounts[s.id] ?? 0) > 0)
     .map((s) => ({ id: s.id, name: s.name }))
-    .sort((a, b) => a.name.localeCompare(b.name))
+
+  if (!availableSubjects.length) redirect("/study")
 
   return (
     <StudyPicker
