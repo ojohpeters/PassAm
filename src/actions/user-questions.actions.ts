@@ -161,28 +161,38 @@ Rules for CSV:
 
 Be encouraging, patient, and educational. Always root for the student's success.`
 
-// Gemini uses Google AI Studio's OpenAI-compatible endpoint — free tier, no credit card
+// Gemini native API — works with free AI Studio keys, no OpenAI-compat layer needed
 async function callGemini(messages: ChatMessage[], apiKey: string, pdfContext?: string): Promise<{ ok: boolean; content?: string; errorCode?: string }> {
   const system = pdfContext
     ? `${SYSTEM_PROMPT}\n\n---\nATTACHED DOCUMENT:\n${pdfContext.slice(0, 24000)}\n---`
     : SYSTEM_PROMPT
 
-  const res = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "gemini-2.0-flash",
-      messages: [{ role: "system", content: system }, ...messages],
-      max_tokens: 2048,
-    }),
-  })
+  // Gemini uses "model" instead of "assistant" for the AI role
+  const contents = messages.map(m => ({
+    role: m.role === "assistant" ? "model" : "user",
+    parts: [{ text: m.content }],
+  }))
+
+  const res = await fetch(
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+    {
+      method: "POST",
+      headers: { "X-goog-api-key": apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: system }] },
+        contents,
+        generationConfig: { maxOutputTokens: 2048, temperature: 0.7 },
+      }),
+    }
+  )
 
   if (res.status === 401 || res.status === 403) return { ok: false, errorCode: "expired_gemini" }
   if (res.status === 429) return { ok: false, errorCode: "rate_limit" }
   if (!res.ok) return { ok: false, errorCode: "api_error" }
 
-  const data = await res.json() as { choices?: { message?: { content?: string } }[] }
-  return { ok: true, content: data.choices?.[0]?.message?.content ?? "" }
+  const data = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
+  const content = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
+  return { ok: true, content }
 }
 
 async function callDeepSeek(messages: ChatMessage[], apiKey: string, pdfContext?: string): Promise<{ ok: boolean; content?: string; errorCode?: string }> {
