@@ -162,7 +162,7 @@ Rules for CSV:
 Be encouraging, patient, and educational. Always root for the student's success.`
 
 // Gemini native API — works with free AI Studio keys, no OpenAI-compat layer needed
-async function callGemini(messages: ChatMessage[], apiKey: string, pdfContext?: string): Promise<{ ok: boolean; content?: string; errorCode?: string }> {
+async function callGemini(messages: ChatMessage[], apiKey: string, pdfContext?: string): Promise<{ ok: boolean; content?: string; errorCode?: string; detail?: string }> {
   const system = pdfContext
     ? `${SYSTEM_PROMPT}\n\n---\nATTACHED DOCUMENT:\n${pdfContext.slice(0, 24000)}\n---`
     : SYSTEM_PROMPT
@@ -174,7 +174,7 @@ async function callGemini(messages: ChatMessage[], apiKey: string, pdfContext?: 
   }))
 
   const res = await fetch(
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent",
     {
       method: "POST",
       headers: { "X-goog-api-key": apiKey, "Content-Type": "application/json" },
@@ -186,9 +186,13 @@ async function callGemini(messages: ChatMessage[], apiKey: string, pdfContext?: 
     }
   )
 
-  if (res.status === 401 || res.status === 403) return { ok: false, errorCode: "expired_gemini" }
-  if (res.status === 429) return { ok: false, errorCode: "rate_limit" }
-  if (!res.ok) return { ok: false, errorCode: "api_error" }
+  if (!res.ok) {
+    const body = await res.text().catch(() => "")
+    console.error(`[Gemini] HTTP ${res.status}:`, body)
+    if (res.status === 401 || res.status === 403) return { ok: false, errorCode: "expired_gemini" }
+    if (res.status === 429) return { ok: false, errorCode: "rate_limit" }
+    return { ok: false, errorCode: res.status === 429 ? "rate_limit" : "api_error", detail: `Gemini HTTP ${res.status}: ${body.slice(0, 300)}` }
+  }
 
   const data = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
   const content = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
@@ -259,12 +263,12 @@ export async function chatWithAI(
   }
 
   try {
-    // 1. Gemini (free primary)
+    // 1. Gemini (free primary) — fall through to Groq on any failure
     if (geminiKey?.trim()) {
       const gm = await callGemini(messages, geminiKey.trim(), pdfContext)
       if (gm.ok) return { success: true as const, content: gm.content!, provider: "gemini" as const }
-      if (gm.errorCode === "rate_limit") return { success: false as const, error: "rate_limit" as const }
-      // expired/error → fall through to Groq
+      console.error("[PrepAI] Gemini failed:", gm.errorCode, (gm as { detail?: string }).detail ?? "")
+      // Always fall through — Groq will pick up even on rate limit
     }
 
     // 2. Groq (free backup)
@@ -284,7 +288,8 @@ export async function chatWithAI(
       return { success: false as const, error: "expired_deepseek" as const }
     }
 
-    return { success: false as const, error: "no_key" as const }
+    // All providers failed — report Gemini failure if that's the only one we tried
+    return { success: false as const, error: "expired_gemini" as const }
   } catch {
     return { success: false as const, error: "network" as const }
   }
