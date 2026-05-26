@@ -77,40 +77,54 @@ export async function deleteUserQuestion(id: string) {
   return { success: true as const }
 }
 
-// ─── Groq API Key ─────────────────────────────────────────────────────────────
+// ─── API Keys ─────────────────────────────────────────────────────────────────
+
+type ApiKeyRow = { groq_api_key: string | null; deepseek_api_key: string | null }
+
+async function upsertKey(userId: string, patch: Partial<ApiKeyRow>) {
+  const supabase = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("user_api_keys")
+    .upsert({ user_id: userId, ...patch, updated_at: new Date().toISOString() })
+  return error ? (error as { message: string }).message : null
+}
 
 export async function saveGroqApiKey(key: string) {
   const user = await getAppUser()
   if (!user) return { success: false as const, error: "UNAUTHORIZED" }
-  const supabase = createAdminClient()
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any)
-    .from("user_api_keys")
-    .upsert({ user_id: user.id, groq_api_key: key.trim() || null, updated_at: new Date().toISOString() })
-
-  if (error) return { success: false as const, error: (error as { message: string }).message }
+  const err = await upsertKey(user.id, { groq_api_key: key.trim() || null })
+  if (err) return { success: false as const, error: err }
   return { success: true as const }
 }
 
-export async function getGroqApiKey(): Promise<string | null> {
+export async function saveDeepseekApiKey(key: string) {
+  const user = await getAppUser()
+  if (!user) return { success: false as const, error: "UNAUTHORIZED" }
+  const err = await upsertKey(user.id, { deepseek_api_key: key.trim() || null })
+  if (err) return { success: false as const, error: err }
+  return { success: true as const }
+}
+
+export async function getApiKeys(): Promise<{ groqKey: string | null; deepseekKey: string | null }> {
   try {
     const user = await getAppUser()
-    if (!user) return null
+    if (!user) return { groqKey: null, deepseekKey: null }
     const supabase = createAdminClient()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data } = await (supabase as any)
       .from("user_api_keys")
-      .select("groq_api_key")
+      .select("groq_api_key, deepseek_api_key")
       .eq("user_id", user.id)
       .single()
-    return (data as { groq_api_key: string | null } | null)?.groq_api_key ?? null
+    const row = data as ApiKeyRow | null
+    return { groqKey: row?.groq_api_key ?? null, deepseekKey: row?.deepseek_api_key ?? null }
   } catch {
-    return null
+    return { groqKey: null, deepseekKey: null }
   }
 }
 
-// ─── PrepAI (Groq) ────────────────────────────────────────────────────────────
+// ─── PrepAI: DeepSeek (primary) + Groq (backup) ──────────────────────────────
 
 const SYSTEM_PROMPT = `You are PrepAI, an intelligent study assistant built for PrepIQ by Ojochegbe. PrepIQ helps Nigerian students prepare for JAMB, WAEC, NECO, and Post-UTME examinations.
 
@@ -120,6 +134,7 @@ You can:
 1. Explain any concept step-by-step in simple, clear language suited to the Nigerian curriculum
 2. Quiz students and give detailed breakdowns of answers
 3. Generate practice questions in CSV format on request
+4. Analyse attached documents (past question papers, study notes) and extract questions from them
 
 When generating CSV questions, ALWAYS wrap them in a \`\`\`csv code block. Use exactly 8 comma-separated columns per line:
 question text, option A, option B, option C, option D, correct letter (A/B/C/D), explanation, subject label
@@ -138,34 +153,85 @@ Rules for CSV:
 
 Be encouraging, patient, and educational. Always root for the student's success.`
 
-export async function chatWithGroqAI(messages: ChatMessage[], apiKey: string) {
-  if (!apiKey.trim()) return { success: false as const, error: "no_key" as const }
+async function callDeepSeek(messages: ChatMessage[], apiKey: string, pdfContext?: string): Promise<{ ok: boolean; content?: string; errorCode?: string }> {
+  const system = pdfContext
+    ? `${SYSTEM_PROMPT}\n\n---\nATTACHED DOCUMENT (use this as context for the student's questions):\n${pdfContext.slice(0, 24000)}\n---`
+    : SYSTEM_PROMPT
 
+  const res = await fetch("https://api.deepseek.com/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "deepseek-chat",
+      messages: [{ role: "system", content: system }, ...messages],
+      max_tokens: 2048,
+    }),
+  })
+
+  if (res.status === 401 || res.status === 403) return { ok: false, errorCode: "expired_deepseek" }
+  if (res.status === 429) return { ok: false, errorCode: "rate_limit" }
+  if (!res.ok) return { ok: false, errorCode: "api_error" }
+
+  const data = await res.json() as { choices?: { message?: { content?: string } }[] }
+  return { ok: true, content: data.choices?.[0]?.message?.content ?? "" }
+}
+
+async function callGroq(messages: ChatMessage[], apiKey: string, pdfContext?: string): Promise<{ ok: boolean; content?: string; errorCode?: string }> {
+  const system = pdfContext
+    ? `${SYSTEM_PROMPT}\n\n---\nATTACHED DOCUMENT:\n${pdfContext.slice(0, 24000)}\n---`
+    : SYSTEM_PROMPT
+
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "llama-3.3-70b-versatile",
+      messages: [{ role: "system", content: system }, ...messages],
+      max_tokens: 2048,
+      temperature: 0.7,
+    }),
+  })
+
+  if (res.status === 401) return { ok: false, errorCode: "expired_groq" }
+  if (res.status === 429) return { ok: false, errorCode: "rate_limit" }
+  if (!res.ok) return { ok: false, errorCode: "api_error" }
+
+  const data = await res.json() as { choices?: { message?: { content?: string } }[] }
+  return { ok: true, content: data.choices?.[0]?.message?.content ?? "" }
+}
+
+export async function chatWithAI(
+  messages: ChatMessage[],
+  deepseekKey: string | null,
+  groqKey: string | null,
+  pdfContext?: string,
+) {
   const user = await getAppUser()
   if (!user) return { success: false as const, error: "no_key" as const }
 
+  if (!deepseekKey?.trim() && !groqKey?.trim()) {
+    return { success: false as const, error: "no_key" as const }
+  }
+
   try {
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey.trim()}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
-        messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
-        max_tokens: 2048,
-        temperature: 0.7,
-      }),
-    })
+    // Try DeepSeek first
+    if (deepseekKey?.trim()) {
+      const ds = await callDeepSeek(messages, deepseekKey.trim(), pdfContext)
+      if (ds.ok) return { success: true as const, content: ds.content!, provider: "deepseek" as const }
+      // Fall through to Groq for any error except rate limit
+      if (ds.errorCode === "rate_limit") return { success: false as const, error: "rate_limit" as const }
+    }
 
-    if (res.status === 401) return { success: false as const, error: "expired" as const }
-    if (res.status === 429) return { success: false as const, error: "rate_limit" as const }
-    if (!res.ok) return { success: false as const, error: "api_error" as const }
+    // Groq fallback
+    if (groqKey?.trim()) {
+      const gr = await callGroq(messages, groqKey.trim(), pdfContext)
+      if (gr.ok) return { success: true as const, content: gr.content!, provider: "groq" as const }
+      if (gr.errorCode === "expired_groq") return { success: false as const, error: "expired_groq" as const }
+      if (gr.errorCode === "rate_limit") return { success: false as const, error: "rate_limit" as const }
+      return { success: false as const, error: "api_error" as const }
+    }
 
-    const data = await res.json() as { choices?: { message?: { content?: string } }[] }
-    const content = data.choices?.[0]?.message?.content ?? ""
-    return { success: true as const, content }
+    return { success: false as const, error: "expired_deepseek" as const }
   } catch {
     return { success: false as const, error: "network" as const }
   }
