@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react"
 import Link from "next/link"
 import {
-  Bot, Key, ExternalLink, Send, Loader2, BookPlus, Paperclip,
+  Bot, Key, ExternalLink, Send, Loader2, Paperclip,
   FileText, X, Info, AlertCircle, CheckCircle2, ChevronRight,
   Copy, Check, ArrowLeft, Trash2, History,
 } from "lucide-react"
@@ -30,8 +30,8 @@ type ChatMessage = {
   role: "user" | "assistant"
   content: string
   provider?: "gemini" | "groq" | "deepseek"
-  csvRows?: ParsedRow[]
   csvText?: string
+  csvImported?: number
   isPdfNotice?: boolean
 }
 
@@ -267,7 +267,6 @@ export function PrepAIClient({ initialGeminiKey, initialGroqKey, initialDeepseek
   )
   const [aiInput, setAiInput] = useState("")
   const [sending, setSending] = useState(false)
-  const [importingAiId, setImportingAiId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
 
   // PDF
@@ -379,14 +378,21 @@ export function PrepAIClient({ initialGeminiKey, initialGroqKey, initialDeepseek
       setMessages(prev => [...prev, { id: crypto.randomUUID(), role: "assistant", content: `⚠️ ${errMap[res.error] ?? "Something went wrong."}` }])
     } else {
       const csvBlock = extractCsvBlock(res.content)
-      const csvRows = csvBlock ? parseAndValidateCsv(csvBlock) : undefined
+      const validCsvRows = csvBlock ? parseAndValidateCsv(csvBlock).filter(r => r.valid) : []
+      const msgId = crypto.randomUUID()
       const aiMsg: ChatMessage = {
-        id: crypto.randomUUID(), role: "assistant",
+        id: msgId, role: "assistant",
         content: res.content, provider: res.provider,
-        csvRows: csvRows?.some(r => r.valid) ? csvRows : undefined,
         csvText: csvBlock ?? undefined,
       }
       setMessages(prev => [...prev, aiMsg])
+
+      // Auto-import CSV questions immediately
+      if (validCsvRows.length > 0) {
+        bulkAddUserQuestions(validCsvRows).then(r => {
+          if (r.success) setMessages(prev => prev.map(m => m.id === msgId ? { ...m, csvImported: r.count } : m))
+        }).catch(() => {})
+      }
 
       if (historyDays && historyDays > 0) {
         saveChatMessages(
@@ -403,15 +409,6 @@ export function PrepAIClient({ initialGeminiKey, initialGroqKey, initialDeepseek
     const text = aiInput.trim()
     if (!text || sending) return
     await doSend(text)
-  }
-
-  async function handleImportFromAi(msgId: string, rows: ParsedRow[]) {
-    const valid = rows.filter(r => r.valid)
-    if (!valid.length) return
-    setImportingAiId(msgId)
-    const res = await bulkAddUserQuestions(valid)
-    if (res.success) setMessages(prev => prev.map(m => m.id === msgId ? { ...m, csvRows: undefined } : m))
-    setImportingAiId(null)
   }
 
   async function handleCopyCSV(msgId: string, text: string) {
@@ -592,14 +589,13 @@ export function PrepAIClient({ initialGeminiKey, initialGroqKey, initialDeepseek
                   via {msg.provider === "gemini" ? "Gemini" : msg.provider === "groq" ? "Groq" : "DeepSeek"}
                 </p>
               )}
-              {(msg.csvRows || msg.csvText) && (
-                <div className="flex flex-wrap gap-2">
-                  {msg.csvRows && (
-                    <button onClick={() => handleImportFromAi(msg.id, msg.csvRows!)} disabled={importingAiId === msg.id}
-                      className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:opacity-90 disabled:opacity-60">
-                      {importingAiId === msg.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BookPlus className="h-3.5 w-3.5" />}
-                      Import {msg.csvRows.filter(r => r.valid).length} to Bank
-                    </button>
+              {(msg.csvImported !== undefined || msg.csvText) && (
+                <div className="flex flex-wrap gap-2 items-center">
+                  {msg.csvImported !== undefined && (
+                    <div className="flex items-center gap-1.5 rounded-xl bg-emerald-50 border border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800/40 px-3 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      {msg.csvImported} question{msg.csvImported !== 1 ? "s" : ""} added to your bank
+                    </div>
                   )}
                   {msg.csvText && (
                     <button onClick={() => handleCopyCSV(msg.id, msg.csvText!)}
