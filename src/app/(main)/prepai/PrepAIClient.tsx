@@ -77,8 +77,8 @@ function extractCsvBlock(content: string): string | null {
 
 async function extractPdfText(file: File): Promise<PdfAttachment> {
   const pdfjsLib = await import("pdfjs-dist")
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-    `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`
+  // Serve worker from same origin to avoid CDN/CORS issues
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs"
   const buffer = await file.arrayBuffer()
   const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise
   const parts: string[] = []
@@ -331,19 +331,38 @@ export function PrepAIClient({ initialGeminiKey, initialGroqKey, initialDeepseek
   async function handlePdfSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    if (file.type !== "application/pdf") { setPdfError("Only PDF files are supported."); return }
-    if (file.size > 20 * 1024 * 1024) { setPdfError("PDF must be under 20 MB."); return }
+    if (file.type !== "application/pdf") {
+      setPdfError("Only PDF files are supported. Please select a .pdf file.")
+      return
+    }
+    const sizeMB = (file.size / (1024 * 1024)).toFixed(1)
+    if (file.size > 20 * 1024 * 1024) {
+      setPdfError(`This PDF is ${sizeMB} MB — too large. Please keep it under 20 MB. Use ilovepdf.com to split or compress it first.`)
+      return
+    }
     setPdfError(null); setExtractingPdf(true); setPdfAttachment(null)
     try {
       const att = await extractPdfText(file)
-      if (!att.text.trim()) { setPdfError("Could not extract text — may be a scanned image."); setExtractingPdf(false); return }
+      if (!att.text.trim()) {
+        setPdfError("No readable text found in this PDF. It may be a scanned image — PrepAI can only read text-based PDFs. Try converting it with ilovepdf.com (OCR PDF tool).")
+        setExtractingPdf(false)
+        return
+      }
+      if (att.text.length < 50) {
+        setPdfError("Very little text was extracted. This PDF may be mostly images. PrepAI works best with text-based PDFs.")
+        setExtractingPdf(false)
+        return
+      }
       setPdfAttachment(att)
       const wc = att.text.split(/\s+/).length
       setMessages(prev => [...prev, {
         id: crypto.randomUUID(), role: "assistant", isPdfNotice: true,
         content: `PDF attached: **${att.name}** (${att.pages} page${att.pages !== 1 ? "s" : ""}, ~${wc.toLocaleString()} words).\n\nAsk me anything about this document, or tap **Extract all questions** to pull every MCQ into your bank.`,
       }])
-    } catch { setPdfError("Failed to read the PDF. Try a different file.") }
+    } catch (err) {
+      console.error("[PrepAI] PDF error:", err)
+      setPdfError("Failed to read this PDF. Make sure it's a valid, non-password-protected PDF. If the file is large, try splitting it at ilovepdf.com.")
+    }
     setExtractingPdf(false)
     if (fileInputRef.current) fileInputRef.current.value = ""
   }
@@ -659,8 +678,32 @@ export function PrepAIClient({ initialGeminiKey, initialGroqKey, initialDeepseek
       </div>
 
       {pdfError && (
-        <div className="shrink-0 mx-3 mb-2 flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-800/40 dark:bg-rose-950/20 dark:text-rose-400">
-          <AlertCircle className="h-4 w-4 shrink-0" /> {pdfError}
+        <div className="shrink-0 mx-3 mb-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs text-rose-700 dark:border-rose-800/40 dark:bg-rose-950/20 dark:text-rose-400">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p>{pdfError}</p>
+              <a href="https://www.ilovepdf.com" target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-0.5 font-semibold underline underline-offset-2">
+                Open ilovepdf.com <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PDF tips — shown when no PDF is attached */}
+      {!pdfAttachment && (
+        <div className="shrink-0 mx-3 mb-2 flex items-start gap-2 rounded-xl border border-dashed bg-muted/20 px-3 py-2 text-[11px] text-muted-foreground">
+          <Paperclip className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+          <p>
+            <strong className="text-foreground">Attach a PDF</strong> to analyse past questions or study notes.
+            {" "}Text-based PDFs only · max 20 MB · large files?{" "}
+            <a href="https://www.ilovepdf.com/split_pdf" target="_blank" rel="noopener noreferrer"
+              className="text-primary hover:underline">
+              Split at ilovepdf.com
+            </a>
+          </p>
         </div>
       )}
 
