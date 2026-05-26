@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Trophy, BarChart2, Calendar, UserCircle, MessageCircleHeart, Lightbulb, Users, Zap, BookOpen, BookX, Target, Layers, GaugeCircle, LibraryBig } from "lucide-react"
+import { LayoutDashboard, Trophy, BarChart2, Calendar, UserCircle, MessageCircleHeart, Lightbulb, Users, Zap, BookOpen, BookX, Target, Layers, GaugeCircle, LibraryBig, Bot } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const NAV = [
@@ -13,6 +13,7 @@ const NAV = [
   { href: "/drill",        label: "Timed Drill",  icon: Zap      },
   { href: "/study-room",   label: "Study Room",   icon: BookOpen },
   { href: "/my-questions", label: "My Bank",      icon: LibraryBig },
+  { href: "/prepai",       label: "PrepAI",       icon: Bot      },
   { href: "/error-log",   label: "Error Log",    icon: BookX    },
   { href: "/weak-spots",  label: "Weak Spots",   icon: Target   },
   { href: "/analytics",   label: "Analytics",   icon: BarChart2 },

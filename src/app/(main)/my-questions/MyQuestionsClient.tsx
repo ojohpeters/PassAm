@@ -1,44 +1,25 @@
 "use client"
 
-import { useState, useRef, useEffect, useMemo } from "react"
+import { useState, useMemo } from "react"
+import Link from "next/link"
 import {
   Trash2, Search, Upload, Bot, Database, ChevronRight,
-  Download, AlertCircle, CheckCircle2, Key, ExternalLink,
-  Send, Loader2, BookPlus, Paperclip, FileText, X, Info,
+  Download, AlertCircle, CheckCircle2, Loader2, BookPlus,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   getUserQuestions,
   bulkAddUserQuestions,
   deleteUserQuestion,
-  saveGroqApiKey,
-  saveDeepseekApiKey,
-  saveGeminiApiKey,
-  chatWithAI,
   type UserQuestion as Question,
 } from "@/actions/user-questions.actions"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type ParsedRow = {
-  valid: boolean
-  error?: string
-  q_text: string
-  opt_a: string; opt_b: string; opt_c: string; opt_d: string
-  correct: string
-  explanation?: string
-  subject_label?: string
-}
-
-type PdfAttachment = { name: string; text: string; pages: number }
-
-type ChatMessage = {
-  id: string
-  role: "user" | "assistant"
-  content: string
-  provider?: "gemini" | "groq" | "deepseek"
-  csvRows?: ParsedRow[]
-  isPdfNotice?: boolean
+  valid: boolean; error?: string
+  q_text: string; opt_a: string; opt_b: string; opt_c: string; opt_d: string
+  correct: string; explanation?: string; subject_label?: string
 }
 
 const OPTION_KEYS = ["opt_a", "opt_b", "opt_c", "opt_d"] as const
@@ -57,9 +38,7 @@ function parseCsvLine(line: string): string[] {
       else inQuotes = !inQuotes
     } else if (ch === "," && !inQuotes) {
       result.push(current.trim()); current = ""
-    } else {
-      current += ch
-    }
+    } else { current += ch }
   }
   result.push(current.trim())
   return result
@@ -68,107 +47,31 @@ function parseCsvLine(line: string): string[] {
 function parseAndValidateCsv(text: string): ParsedRow[] {
   return text.split("\n").map(l => l.trim()).filter(Boolean).map((line, i) => {
     const cols = parseCsvLine(line)
-    const lineNum = i + 1
-    if (cols.length < 6) return { valid: false, error: `Row ${lineNum}: needs at least 6 columns`, q_text: line, opt_a: "", opt_b: "", opt_c: "", opt_d: "", correct: "" }
+    const n = i + 1
+    if (cols.length < 6) return { valid: false, error: `Row ${n}: needs at least 6 columns`, q_text: line, opt_a: "", opt_b: "", opt_c: "", opt_d: "", correct: "" }
     const [q_text, opt_a, opt_b, opt_c, opt_d, correct, explanation, subject_label] = cols
-    if (!q_text) return { valid: false, error: `Row ${lineNum}: question text is empty`, q_text: "", opt_a: "", opt_b: "", opt_c: "", opt_d: "", correct: "" }
-    if (!opt_a || !opt_b || !opt_c || !opt_d) return { valid: false, error: `Row ${lineNum}: all 4 options required`, q_text, opt_a: opt_a ?? "", opt_b: opt_b ?? "", opt_c: opt_c ?? "", opt_d: opt_d ?? "", correct: "" }
+    if (!q_text) return { valid: false, error: `Row ${n}: question text empty`, q_text: "", opt_a: "", opt_b: "", opt_c: "", opt_d: "", correct: "" }
+    if (!opt_a || !opt_b || !opt_c || !opt_d) return { valid: false, error: `Row ${n}: all 4 options required`, q_text, opt_a: opt_a ?? "", opt_b: opt_b ?? "", opt_c: opt_c ?? "", opt_d: opt_d ?? "", correct: "" }
     const correctUp = (correct ?? "").trim().toUpperCase()
-    if (!["A", "B", "C", "D"].includes(correctUp)) return { valid: false, error: `Row ${lineNum}: correct must be A, B, C, or D`, q_text, opt_a, opt_b, opt_c, opt_d, correct: "" }
+    if (!["A", "B", "C", "D"].includes(correctUp)) return { valid: false, error: `Row ${n}: correct must be A/B/C/D`, q_text, opt_a, opt_b, opt_c, opt_d, correct: "" }
     return { valid: true, q_text, opt_a, opt_b, opt_c, opt_d, correct: correctUp, explanation: explanation || undefined, subject_label: subject_label || undefined }
   })
 }
 
-function extractCsvBlock(content: string): string | null {
-  const match = content.match(/```csv\n([\s\S]*?)```/)
-  return match ? match[1].trim() : null
-}
-
-// ─── PDF extraction (browser only) ───────────────────────────────────────────
-
-async function extractPdfText(file: File): Promise<PdfAttachment> {
-  const pdfjsLib = await import("pdfjs-dist")
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-    `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`
-
-  const buffer = await file.arrayBuffer()
-  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise
-  const parts: string[] = []
-
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i)
-    const content = await page.getTextContent()
-    const pageText = content.items
-      .map(item => ("str" in item ? (item as { str: string }).str : ""))
-      .join(" ")
-    parts.push(pageText)
-  }
-
-  return { name: file.name, text: parts.join("\n").trim(), pages: pdf.numPages }
-}
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
-type Props = {
-  initialQuestions: Question[]
-  initialGeminiKey: string | null
-  initialGroqKey: string | null
-  initialDeepseekKey: string | null
-}
+type Props = { initialQuestions: Question[] }
 
-export function MyQuestionsClient({ initialQuestions, initialGeminiKey, initialGroqKey, initialDeepseekKey }: Props) {
-  const [tab, setTab] = useState<"questions" | "upload" | "ai">("questions")
-
-  // Questions tab
+export function MyQuestionsClient({ initialQuestions }: Props) {
+  const [tab, setTab] = useState<"questions" | "upload">("questions")
   const [questions, setQuestions] = useState<Question[]>(initialQuestions)
   const [search, setSearch] = useState("")
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  // Upload tab
   const [csvText, setCsvText] = useState("")
   const [preview, setPreview] = useState<ParsedRow[] | null>(null)
   const [importing, setImporting] = useState(false)
   const [importMsg, setImportMsg] = useState<{ ok: boolean; text: string } | null>(null)
-
-  // AI tab — keys (priority: Gemini free > Groq free > DeepSeek paid)
-  const [geminiKey, setGeminiKey] = useState(initialGeminiKey ?? "")
-  const [savedGeminiKey, setSavedGeminiKey] = useState(initialGeminiKey ?? "")
-  const [savingGeminiKey, setSavingGeminiKey] = useState(false)
-  const [groqKey, setGroqKey] = useState(initialGroqKey ?? "")
-  const [savedGroqKey, setSavedGroqKey] = useState(initialGroqKey ?? "")
-  const [savingGroqKey, setSavingGroqKey] = useState(false)
-  const [deepseekKey, setDeepseekKey] = useState(initialDeepseekKey ?? "")
-  const [savedDeepseekKey, setSavedDeepseekKey] = useState(initialDeepseekKey ?? "")
-  const [savingDsKey, setSavingDsKey] = useState(false)
-  const [keyMsg, setKeyMsg] = useState<{ ok: boolean; text: string } | null>(null)
-  const [showKeyPanel, setShowKeyPanel] = useState(!initialGeminiKey && !initialGroqKey && !initialDeepseekKey)
-
-  // AI tab — chat
-  const [messages, setMessages] = useState<ChatMessage[]>([{
-    id: "welcome",
-    role: "assistant",
-    content: "Hi! I'm PrepAI, your study assistant built for PrepIQ by Ojochegbe.\n\nI can explain any concept, quiz you, and generate questions for your bank.\n\nYou can also *attach a PDF* (past question papers, study notes) and ask me about it — or let me extract all MCQs into your bank.\n\nTry: *\"Explain Newton's laws\"* or *\"Generate 5 Biology questions\"*",
-  }])
-  const [aiInput, setAiInput] = useState("")
-  const [sending, setSending] = useState(false)
-  const [importingAiId, setImportingAiId] = useState<string | null>(null)
-
-  // PDF attachment
-  const [pdfAttachment, setPdfAttachment] = useState<PdfAttachment | null>(null)
-  const [extractingPdf, setExtractingPdf] = useState(false)
-  const [pdfError, setPdfError] = useState<string | null>(null)
-
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLTextAreaElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  const hasAnyKey = !!(savedGeminiKey.trim() || savedGroqKey.trim() || savedDeepseekKey.trim())
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages])
-
-  // ── Questions tab ────────────────────────────────────────────────────────────
 
   const filteredQuestions = useMemo(() => {
     const q = search.toLowerCase()
@@ -188,8 +91,6 @@ export function MyQuestionsClient({ initialQuestions, initialGeminiKey, initialG
     if (res.success) setQuestions(res.data as Question[])
   }
 
-  // ── Upload tab ───────────────────────────────────────────────────────────────
-
   function handlePreview() {
     if (!csvText.trim()) return
     setPreview(parseAndValidateCsv(csvText))
@@ -203,7 +104,7 @@ export function MyQuestionsClient({ initialQuestions, initialGeminiKey, initialG
     setImporting(true)
     const res = await bulkAddUserQuestions(valid)
     if (res.success) {
-      setImportMsg({ ok: true, text: `${res.count} question${res.count !== 1 ? "s" : ""} added to your bank.` })
+      setImportMsg({ ok: true, text: `${res.count} question${res.count !== 1 ? "s" : ""} added.` })
       setCsvText(""); setPreview(null)
       await refetchQuestions()
     } else {
@@ -225,157 +126,8 @@ export function MyQuestionsClient({ initialQuestions, initialGeminiKey, initialG
     URL.revokeObjectURL(url)
   }
 
-  // ── AI tab — keys ────────────────────────────────────────────────────────────
-
-  async function handleSaveGemini() {
-    setSavingGeminiKey(true); setKeyMsg(null)
-    const res = await saveGeminiApiKey(geminiKey)
-    if (res.success) { setSavedGeminiKey(geminiKey); setKeyMsg({ ok: true, text: "Gemini key saved." }); if (geminiKey.trim()) setShowKeyPanel(false) }
-    else setKeyMsg({ ok: false, text: res.error ?? "Failed." })
-    setSavingGeminiKey(false)
-  }
-
-  async function handleSaveGroq() {
-    setSavingGroqKey(true); setKeyMsg(null)
-    const res = await saveGroqApiKey(groqKey)
-    if (res.success) { setSavedGroqKey(groqKey); setKeyMsg({ ok: true, text: "Groq key saved." }) }
-    else setKeyMsg({ ok: false, text: res.error ?? "Failed." })
-    setSavingGroqKey(false)
-  }
-
-  async function handleSaveDeepseek() {
-    setSavingDsKey(true); setKeyMsg(null)
-    const res = await saveDeepseekApiKey(deepseekKey)
-    if (res.success) { setSavedDeepseekKey(deepseekKey); setKeyMsg({ ok: true, text: "DeepSeek key saved." }) }
-    else setKeyMsg({ ok: false, text: res.error ?? "Failed." })
-    setSavingDsKey(false)
-  }
-
-  // ── AI tab — PDF ─────────────────────────────────────────────────────────────
-
-  async function handlePdfSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (file.type !== "application/pdf") { setPdfError("Only PDF files are supported."); return }
-    if (file.size > 20 * 1024 * 1024) { setPdfError("PDF must be under 20 MB."); return }
-
-    setPdfError(null)
-    setExtractingPdf(true)
-    setPdfAttachment(null)
-
-    try {
-      const attachment = await extractPdfText(file)
-      if (!attachment.text.trim()) {
-        setPdfError("Could not extract text from this PDF. It may be a scanned image.")
-        setExtractingPdf(false)
-        return
-      }
-      setPdfAttachment(attachment)
-
-      const wordCount = attachment.text.split(/\s+/).length
-      const notice: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: `PDF attached: **${attachment.name}** (${attachment.pages} page${attachment.pages !== 1 ? "s" : ""}, ~${wordCount.toLocaleString()} words).\n\nYou can now ask me anything about this document, or click **Extract all questions** to pull every MCQ into your bank.`,
-        isPdfNotice: true,
-      }
-      setMessages(prev => [...prev, notice])
-    } catch {
-      setPdfError("Failed to read the PDF. Please try a different file.")
-    }
-    setExtractingPdf(false)
-    if (fileInputRef.current) fileInputRef.current.value = ""
-  }
-
-  async function handleExtractAll() {
-    if (!pdfAttachment) return
-    const prompt = "Please extract ALL multiple choice questions from the attached document and output them in CSV format. Include every question you can find, even if partial. Make sure each correct answer letter (A/B/C/D) is accurate."
-    await doSend(prompt)
-  }
-
-  // ── AI tab — chat ────────────────────────────────────────────────────────────
-
-  async function doSend(text: string) {
-    if (!hasAnyKey) { setShowKeyPanel(true); return }
-    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", content: text }
-    const history = [...messages, userMsg]
-      .filter(m => m.id !== "welcome" && !m.isPdfNotice)
-      .map(m => ({ role: m.role, content: m.content }))
-
-    setMessages(prev => [...prev, userMsg])
-    setAiInput("")
-    setSending(true)
-
-    const res = await chatWithAI(history, savedGeminiKey || null, savedGroqKey || null, savedDeepseekKey || null, pdfAttachment?.text)
-
-    if (!res.success) {
-      const errMap: Record<string, string> = {
-        expired_gemini: "Your Gemini key is invalid. Double-check it in the key panel.",
-        expired_groq: "Your Groq key is invalid. Update it in the key panel.",
-        expired_deepseek: "Your DeepSeek key is invalid. Update it in the key panel.",
-        no_balance: "Your DeepSeek account has no credits. Add balance at platform.deepseek.com — use the free Gemini or Groq keys instead.",
-        rate_limit: "Rate limit reached. Please wait a moment and try again.",
-        no_key: "Please add a free Gemini or Groq API key to get started.",
-        network: "Network error. Please check your connection.",
-        api_error: "The AI API returned an error. Please try again.",
-      }
-      if (["expired_gemini", "expired_groq", "expired_deepseek", "no_balance"].includes(res.error)) setShowKeyPanel(true)
-      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: "assistant", content: `⚠️ ${errMap[res.error] ?? "Something went wrong."}` }])
-    } else {
-      const csvBlock = extractCsvBlock(res.content)
-      const csvRows = csvBlock ? parseAndValidateCsv(csvBlock) : undefined
-      setMessages(prev => [...prev, {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: res.content,
-        provider: res.provider,
-        csvRows: csvRows?.some(r => r.valid) ? csvRows : undefined,
-      }])
-    }
-    setSending(false)
-    setTimeout(() => inputRef.current?.focus(), 100)
-  }
-
-  async function handleSend() {
-    const text = aiInput.trim()
-    if (!text || sending) return
-    await doSend(text)
-  }
-
-  async function handleImportFromAi(msgId: string, rows: ParsedRow[]) {
-    const valid = rows.filter(r => r.valid)
-    if (!valid.length) return
-    setImportingAiId(msgId)
-    const res = await bulkAddUserQuestions(valid)
-    if (res.success) {
-      await refetchQuestions()
-      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, csvRows: undefined } : m))
-    }
-    setImportingAiId(null)
-  }
-
-  function renderContent(content: string) {
-    const withoutCsv = content.replace(/```csv\n[\s\S]*?```/g, "[CSV questions ready to import ↑]")
-    return withoutCsv.split("\n").map((line, i) => {
-      const parts = line.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/)
-      return (
-        <p key={i} className={cn("leading-relaxed", i > 0 && "mt-1")}>
-          {parts.map((p, j) => {
-            if (p.startsWith("**") && p.endsWith("**")) return <strong key={j}>{p.slice(2, -2)}</strong>
-            if (p.startsWith("*") && p.endsWith("*")) return <em key={j}>{p.slice(1, -1)}</em>
-            return p
-          })}
-        </p>
-      )
-    })
-  }
-
-  // ── Derived ──────────────────────────────────────────────────────────────────
-
   const validPreview = preview?.filter(r => r.valid) ?? []
   const invalidPreview = preview?.filter(r => !r.valid) ?? []
-
-  // ─────────────────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-4">
@@ -384,34 +136,31 @@ export function MyQuestionsClient({ initialQuestions, initialGeminiKey, initialG
         {([
           { key: "questions" as const, label: "My Questions", icon: Database, badge: questions.length || null },
           { key: "upload"    as const, label: "Upload CSV",   icon: Upload,   badge: null },
-          { key: "ai"        as const, label: "PrepAI",       icon: Bot,      badge: null },
         ]).map(({ key, label, icon: Icon, badge }) => (
-          <button
-            key={key}
-            onClick={() => setTab(key)}
-            className={cn(
-              "flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-bold transition-all",
-              tab === key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-            )}
-          >
+          <button key={key} onClick={() => setTab(key)}
+            className={cn("flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-bold transition-all",
+              tab === key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
             <Icon className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">{label}</span>
             {badge ? <span className="ml-0.5 rounded-full bg-primary/15 px-1.5 text-[10px] font-black text-primary">{badge}</span> : null}
           </button>
         ))}
+        {/* PrepAI tab — navigates to /prepai */}
+        <Link href="/prepai"
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-background/60 transition-all">
+          <Bot className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">PrepAI</span>
+          <ChevronRight className="h-3 w-3 opacity-50" />
+        </Link>
       </div>
 
-      {/* ── My Questions ─────────────────────────────────────────────────────── */}
+      {/* ── My Questions ──────────────────────────────────────────────────────── */}
       {tab === "questions" && (
         <div className="space-y-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search your questions..."
-              className="w-full rounded-xl border bg-background py-2.5 pl-9 pr-4 text-sm outline-none focus:ring-2 focus:ring-primary/30"
-            />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search your questions..."
+              className="w-full rounded-xl border bg-background py-2.5 pl-9 pr-4 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
           </div>
 
           {filteredQuestions.length === 0 ? (
@@ -424,13 +173,13 @@ export function MyQuestionsClient({ initialQuestions, initialGeminiKey, initialG
               {!search && (
                 <div className="mt-4 flex justify-center gap-2">
                   <button onClick={() => setTab("upload")} className="rounded-xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground hover:opacity-90">Upload CSV</button>
-                  <button onClick={() => setTab("ai")} className="rounded-xl border px-3 py-2 text-xs font-bold hover:bg-muted">Ask PrepAI</button>
+                  <Link href="/prepai" className="rounded-xl border px-3 py-2 text-xs font-bold hover:bg-muted">Ask PrepAI</Link>
                 </div>
               )}
             </div>
           ) : (
             <div className="space-y-2">
-              <p className="text-xs text-muted-foreground px-1">{filteredQuestions.length} question{filteredQuestions.length !== 1 ? "s" : ""}</p>
+              <p className="px-1 text-xs text-muted-foreground">{filteredQuestions.length} question{filteredQuestions.length !== 1 ? "s" : ""}</p>
               {filteredQuestions.map(q => (
                 <div key={q.id} className="rounded-2xl border bg-background p-4 space-y-2">
                   <div className="flex items-start justify-between gap-3">
@@ -447,16 +196,20 @@ export function MyQuestionsClient({ initialQuestions, initialGeminiKey, initialG
                     {OPTION_KEYS.map((key, i) => {
                       const isCorrect = q.correct === OPTION_LABELS[i]
                       return (
-                        <div key={key} className={cn("flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs", isCorrect ? "bg-emerald-50 dark:bg-emerald-950/30" : "bg-muted/40")}>
-                          <span className={cn("flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-black", isCorrect ? "bg-emerald-500 text-white" : "bg-muted text-muted-foreground")}>
+                        <div key={key} className={cn("flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs",
+                          isCorrect ? "bg-emerald-50 dark:bg-emerald-950/30" : "bg-muted/40")}>
+                          <span className={cn("flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-black",
+                            isCorrect ? "bg-emerald-500 text-white" : "bg-muted text-muted-foreground")}>
                             {OPTION_LABELS[i]}
                           </span>
-                          <span className={cn("truncate", isCorrect ? "font-semibold text-emerald-800 dark:text-emerald-300" : "text-muted-foreground")}>{q[key]}</span>
+                          <span className={cn("truncate", isCorrect ? "font-semibold text-emerald-800 dark:text-emerald-300" : "text-muted-foreground")}>
+                            {q[key]}
+                          </span>
                         </div>
                       )
                     })}
                   </div>
-                  {q.explanation && <p className="text-xs text-muted-foreground bg-muted/30 rounded-lg px-3 py-1.5">{q.explanation}</p>}
+                  {q.explanation && <p className="rounded-lg bg-muted/30 px-3 py-1.5 text-xs text-muted-foreground">{q.explanation}</p>}
                 </div>
               ))}
             </div>
@@ -464,7 +217,7 @@ export function MyQuestionsClient({ initialQuestions, initialGeminiKey, initialG
         </div>
       )}
 
-      {/* ── Upload CSV ───────────────────────────────────────────────────────── */}
+      {/* ── Upload CSV ────────────────────────────────────────────────────────── */}
       {tab === "upload" && (
         <div className="space-y-4">
           <div className="rounded-2xl border bg-muted/20 p-4 space-y-3">
@@ -495,15 +248,17 @@ export function MyQuestionsClient({ initialQuestions, initialGeminiKey, initialG
             </div>
             <div className="flex items-start gap-2 rounded-xl bg-primary/5 px-3 py-2.5">
               <Bot className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-              <p className="text-xs text-muted-foreground"><strong className="text-foreground">Tip:</strong> Switch to PrepAI and ask it to generate questions — or attach a PDF and click "Extract all questions".</p>
+              <p className="text-xs text-muted-foreground">
+                <strong className="text-foreground">Tip:</strong>{" "}
+                <Link href="/prepai" className="text-primary hover:underline">Open PrepAI</Link> and ask it to generate questions — it can output them as CSV you can paste here.
+              </p>
             </div>
             <button onClick={downloadExample} className="flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold hover:bg-muted">
               <Download className="h-3.5 w-3.5" /> Download Example CSV
             </button>
           </div>
 
-          <textarea
-            value={csvText}
+          <textarea value={csvText}
             onChange={e => { setCsvText(e.target.value); setPreview(null); setImportMsg(null) }}
             rows={8}
             placeholder={"What is H2O?, Hydrogen, Water, Acid, Salt, B, Water has 2H and 1O., Chemistry\n..."}
@@ -511,12 +266,21 @@ export function MyQuestionsClient({ initialQuestions, initialGeminiKey, initialG
           />
 
           <div className="flex gap-2">
-            <button onClick={handlePreview} disabled={!csvText.trim()} className="rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground hover:opacity-90 disabled:opacity-40">Preview</button>
-            {csvText.trim() && <button onClick={() => { setCsvText(""); setPreview(null); setImportMsg(null) }} className="rounded-xl border px-4 py-2.5 text-xs font-bold hover:bg-muted">Clear</button>}
+            <button onClick={handlePreview} disabled={!csvText.trim()}
+              className="rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground hover:opacity-90 disabled:opacity-40">
+              Preview
+            </button>
+            {csvText.trim() && (
+              <button onClick={() => { setCsvText(""); setPreview(null); setImportMsg(null) }}
+                className="rounded-xl border px-4 py-2.5 text-xs font-bold hover:bg-muted">
+                Clear
+              </button>
+            )}
           </div>
 
           {importMsg && (
-            <div className={cn("flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold", importMsg.ok ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400" : "bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400")}>
+            <div className={cn("flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold",
+              importMsg.ok ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400" : "bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400")}>
               {importMsg.ok ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
               {importMsg.text}
             </div>
@@ -531,228 +295,24 @@ export function MyQuestionsClient({ initialQuestions, initialGeminiKey, initialG
               </div>
               <div className="rounded-2xl border overflow-hidden divide-y">
                 {preview.map((row, i) => (
-                  <div key={i} className={cn("flex items-start gap-3 px-4 py-2.5", row.valid ? "bg-emerald-50/50 dark:bg-emerald-950/10" : "bg-rose-50/50 dark:bg-rose-950/10")}>
+                  <div key={i} className={cn("flex items-start gap-3 px-4 py-2.5",
+                    row.valid ? "bg-emerald-50/50 dark:bg-emerald-950/10" : "bg-rose-50/50 dark:bg-rose-950/10")}>
                     {row.valid ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" /> : <AlertCircle className="h-3.5 w-3.5 text-rose-500 shrink-0 mt-0.5" />}
-                    <p className="text-xs truncate">{row.valid ? <>{row.q_text} {row.subject_label && <span className="text-muted-foreground">· {row.subject_label}</span>}</> : <span className="text-rose-600 dark:text-rose-400">{row.error}</span>}</p>
+                    <p className="text-xs truncate">
+                      {row.valid
+                        ? <>{row.q_text} {row.subject_label && <span className="text-muted-foreground">· {row.subject_label}</span>}</>
+                        : <span className="text-rose-600 dark:text-rose-400">{row.error}</span>}
+                    </p>
                   </div>
                 ))}
               </div>
               {validPreview.length > 0 && (
-                <button onClick={handleImport} disabled={importing} className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground hover:opacity-90 disabled:opacity-60">
+                <button onClick={handleImport} disabled={importing}
+                  className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground hover:opacity-90 disabled:opacity-60">
                   {importing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
                   Import {validPreview.length} question{validPreview.length !== 1 ? "s" : ""}
                 </button>
               )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── PrepAI Tab ───────────────────────────────────────────────────────── */}
-      {tab === "ai" && (
-        <div className="space-y-3">
-          {/* Key panel */}
-          <div className="rounded-2xl border bg-muted/20 overflow-hidden">
-            <button onClick={() => setShowKeyPanel(v => !v)} className="flex w-full items-center justify-between px-4 py-3 text-xs font-bold hover:bg-muted/40">
-              <div className="flex items-center gap-2 flex-wrap">
-                <Key className="h-3.5 w-3.5 text-muted-foreground" />
-                <span>AI Keys</span>
-                {savedGeminiKey
-                  ? <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">Gemini ✓</span>
-                  : <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">Add free key</span>}
-                {savedGroqKey && <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-black text-sky-700 dark:bg-sky-950/40 dark:text-sky-400">Groq ✓</span>}
-              </div>
-              <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", showKeyPanel && "rotate-90")} />
-            </button>
-
-            {showKeyPanel && (
-              <div className="border-t px-4 pb-4 pt-3 space-y-4">
-                <div className="rounded-xl border bg-background/60 p-3 text-xs space-y-2">
-                  <div className="flex items-start gap-1.5">
-                    <Info className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
-                    <p className="text-muted-foreground">
-                      <strong className="text-foreground">Both Gemini and Groq are completely free</strong> — no credit card, no spending. Gemini tries first, Groq is the automatic backup. DeepSeek is optional (paid).
-                    </p>
-                  </div>
-                  <div className="flex items-start gap-1.5 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-950/20 dark:border-amber-800/40 px-2.5 py-2">
-                    <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-600" />
-                    <p className="text-amber-800 dark:text-amber-400 leading-relaxed">
-                      <strong>Security:</strong> Only use the <strong>free tier</strong> key from each provider. Never paste a paid or production key here — free keys have built-in limits that protect you.
-                    </p>
-                  </div>
-                  <div className="flex items-start gap-1.5 rounded-lg bg-[#25D366]/10 px-2.5 py-2">
-                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 shrink-0 mt-0.5 fill-[#25D366]">
-                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-                    </svg>
-                    <p className="text-muted-foreground leading-relaxed">
-                      <strong className="text-foreground">Confused or stuck?</strong> Tap the green WhatsApp button at the bottom-right of the screen to send Ojochegbe a DM — he'll help you set it up.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Gemini — free primary */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-bold">Google Gemini API Key <span className="rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-black text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">FREE · Primary</span></p>
-                    <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-[10px] text-primary hover:underline">Get free key <ExternalLink className="h-2.5 w-2.5" /></a>
-                  </div>
-                  <div className="flex gap-2">
-                    <input type="password" value={geminiKey} onChange={e => setGeminiKey(e.target.value)} placeholder="AIza..." className="flex-1 rounded-xl border bg-background px-3 py-2 text-xs font-mono outline-none focus:ring-2 focus:ring-primary/30" />
-                    <button onClick={handleSaveGemini} disabled={savingGeminiKey} className="rounded-xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground hover:opacity-90 disabled:opacity-60">
-                      {savingGeminiKey ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
-                    </button>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground">Go to <strong>aistudio.google.com</strong> → Get API key → Create. No card required.</p>
-                </div>
-
-                {/* Groq — free backup */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-bold">Groq API Key <span className="rounded-md bg-sky-100 px-1.5 py-0.5 text-[10px] font-black text-sky-700 dark:bg-sky-950/40 dark:text-sky-400">FREE · Backup</span></p>
-                    <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-[10px] text-primary hover:underline">Get free key <ExternalLink className="h-2.5 w-2.5" /></a>
-                  </div>
-                  <div className="flex gap-2">
-                    <input type="password" value={groqKey} onChange={e => setGroqKey(e.target.value)} placeholder="gsk_..." className="flex-1 rounded-xl border bg-background px-3 py-2 text-xs font-mono outline-none focus:ring-2 focus:ring-primary/30" />
-                    <button onClick={handleSaveGroq} disabled={savingGroqKey} className="rounded-xl border px-3 py-2 text-xs font-bold hover:bg-muted disabled:opacity-60">
-                      {savingGroqKey ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
-                    </button>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground">Go to <strong>console.groq.com</strong> → API Keys → Create new. No card required.</p>
-                </div>
-
-                {/* DeepSeek — paid optional */}
-                <details className="group">
-                  <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground list-none flex items-center gap-1">
-                    <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
-                    DeepSeek (optional, paid)
-                  </summary>
-                  <div className="mt-2 space-y-2 pl-4">
-                    <div className="flex gap-2">
-                      <input type="password" value={deepseekKey} onChange={e => setDeepseekKey(e.target.value)} placeholder="sk-..." className="flex-1 rounded-xl border bg-background px-3 py-2 text-xs font-mono outline-none focus:ring-2 focus:ring-primary/30" />
-                      <button onClick={handleSaveDeepseek} disabled={savingDsKey} className="rounded-xl border px-3 py-2 text-xs font-bold hover:bg-muted disabled:opacity-60">
-                        {savingDsKey ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
-                      </button>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground">platform.deepseek.com — requires credits. Only needed if Gemini/Groq are unavailable.</p>
-                  </div>
-                </details>
-
-                {keyMsg && (
-                  <div className={cn("flex items-center gap-1.5 text-xs font-semibold", keyMsg.ok ? "text-emerald-600" : "text-rose-600")}>
-                    {keyMsg.ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
-                    {keyMsg.text}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Chat */}
-          <div className="rounded-2xl border bg-background overflow-hidden">
-            <div className="border-b bg-muted/30 px-4 py-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10">
-                  <Bot className="h-4 w-4 text-primary" />
-                </div>
-                <div>
-                  <p className="text-xs font-black">PrepAI</p>
-                  <p className="text-[10px] text-muted-foreground">Built for PrepIQ by Ojochegbe</p>
-                </div>
-              </div>
-              {pdfAttachment && (
-                <div className="flex items-center gap-1.5 rounded-xl bg-primary/10 px-2.5 py-1.5">
-                  <FileText className="h-3.5 w-3.5 text-primary" />
-                  <span className="text-[11px] font-semibold text-primary max-w-[120px] truncate">{pdfAttachment.name}</span>
-                  <button onClick={() => setPdfAttachment(null)} className="text-muted-foreground hover:text-foreground"><X className="h-3 w-3" /></button>
-                </div>
-              )}
-            </div>
-
-            {/* Messages */}
-            <div className="h-[360px] overflow-y-auto p-4 space-y-4">
-              {messages.map(msg => (
-                <div key={msg.id} className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}>
-                  <div className="max-w-[88%] space-y-2">
-                    <div className={cn("rounded-2xl px-4 py-3 text-sm", msg.role === "user" ? "bg-primary text-primary-foreground rounded-tr-sm" : "bg-muted rounded-tl-sm")}>
-                      {renderContent(msg.content)}
-                    </div>
-                    {msg.provider && (
-                      <p className="text-[10px] text-muted-foreground px-1">
-                        via {msg.provider === "gemini" ? "Gemini" : msg.provider === "groq" ? "Groq" : "DeepSeek"}
-                      </p>
-                    )}
-                    {msg.csvRows && (
-                      <button onClick={() => handleImportFromAi(msg.id, msg.csvRows!)} disabled={importingAiId === msg.id}
-                        className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:opacity-90 disabled:opacity-60">
-                        {importingAiId === msg.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BookPlus className="h-3.5 w-3.5" />}
-                        Import {msg.csvRows.filter(r => r.valid).length} questions to My Bank
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-
-              {sending && (
-                <div className="flex justify-start">
-                  <div className="bg-muted rounded-2xl rounded-tl-sm px-4 py-3 flex gap-1">
-                    {[0,150,300].map(d => <span key={d} className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: `${d}ms` }} />)}
-                  </div>
-                </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* PDF attachment row */}
-            {pdfAttachment && hasAnyKey && (
-              <div className="border-t bg-emerald-50/50 dark:bg-emerald-950/10 px-4 py-2.5 flex items-center gap-3">
-                <FileText className="h-4 w-4 text-emerald-600 shrink-0" />
-                <p className="text-xs text-emerald-700 dark:text-emerald-400 flex-1 truncate">{pdfAttachment.name} ({pdfAttachment.pages}p)</p>
-                <button onClick={handleExtractAll} disabled={sending}
-                  className="shrink-0 rounded-xl bg-emerald-600 px-3 py-1.5 text-[11px] font-bold text-white hover:opacity-90 disabled:opacity-60 whitespace-nowrap">
-                  Extract all questions →
-                </button>
-              </div>
-            )}
-
-            {/* Input row */}
-            <div className="border-t bg-muted/20 p-3 flex gap-2 items-end">
-              <input ref={fileInputRef as React.RefObject<HTMLInputElement>} type="file" accept="application/pdf" onChange={handlePdfSelect} className="hidden" />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={extractingPdf}
-                title="Attach PDF"
-                className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-colors hover:bg-muted disabled:opacity-40", pdfAttachment ? "border-emerald-300 bg-emerald-50 text-emerald-600 dark:border-emerald-700 dark:bg-emerald-950/20" : "text-muted-foreground")}
-              >
-                {extractingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
-              </button>
-
-              <textarea
-                ref={inputRef}
-                value={aiInput}
-                onChange={e => setAiInput(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend() } }}
-                placeholder={hasAnyKey ? "Ask PrepAI anything... (Enter to send)" : "Save an API key above to start chatting"}
-                disabled={sending || !hasAnyKey}
-                rows={1}
-                className="flex-1 resize-none rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50"
-              />
-              <button onClick={handleSend} disabled={sending || !aiInput.trim() || !hasAnyKey}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-40">
-                {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              </button>
-            </div>
-          </div>
-
-          {pdfError && (
-            <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs text-rose-700 dark:border-rose-800/40 dark:bg-rose-950/20 dark:text-rose-400">
-              <AlertCircle className="h-4 w-4 shrink-0" /> {pdfError}
-            </div>
-          )}
-
-          {!hasAnyKey && (
-            <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs dark:border-amber-800/40 dark:bg-amber-950/20">
-              <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
-              <span className="text-amber-700 dark:text-amber-400">Add a <strong>free</strong> Gemini or Groq API key above to unlock PrepAI. No credit card required.</span>
             </div>
           )}
         </div>

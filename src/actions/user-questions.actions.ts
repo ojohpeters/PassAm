@@ -79,7 +79,12 @@ export async function deleteUserQuestion(id: string) {
 
 // ─── API Keys ─────────────────────────────────────────────────────────────────
 
-type ApiKeyRow = { groq_api_key: string | null; deepseek_api_key: string | null; gemini_api_key: string | null }
+type ApiKeyRow = {
+  groq_api_key: string | null
+  deepseek_api_key: string | null
+  gemini_api_key: string | null
+  chat_history_days: number | null
+}
 
 async function upsertKey(userId: string, patch: Partial<ApiKeyRow>) {
   const supabase = createAdminClient()
@@ -114,21 +119,34 @@ export async function saveGeminiApiKey(key: string) {
   return { success: true as const }
 }
 
-export async function getApiKeys(): Promise<{ groqKey: string | null; deepseekKey: string | null; geminiKey: string | null }> {
+export async function saveChatHistoryDays(days: number | null) {
+  const user = await getAppUser()
+  if (!user) return { success: false as const, error: "UNAUTHORIZED" }
+  const err = await upsertKey(user.id, { chat_history_days: days })
+  if (err) return { success: false as const, error: err }
+  return { success: true as const }
+}
+
+export async function getApiKeys(): Promise<{ groqKey: string | null; deepseekKey: string | null; geminiKey: string | null; chatHistoryDays: number | null }> {
   try {
     const user = await getAppUser()
-    if (!user) return { groqKey: null, deepseekKey: null, geminiKey: null }
+    if (!user) return { groqKey: null, deepseekKey: null, geminiKey: null, chatHistoryDays: null }
     const supabase = createAdminClient()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data } = await (supabase as any)
       .from("user_api_keys")
-      .select("groq_api_key, deepseek_api_key, gemini_api_key")
+      .select("groq_api_key, deepseek_api_key, gemini_api_key, chat_history_days")
       .eq("user_id", user.id)
       .single()
     const row = data as ApiKeyRow | null
-    return { groqKey: row?.groq_api_key ?? null, deepseekKey: row?.deepseek_api_key ?? null, geminiKey: row?.gemini_api_key ?? null }
+    return {
+      groqKey: row?.groq_api_key ?? null,
+      deepseekKey: row?.deepseek_api_key ?? null,
+      geminiKey: row?.gemini_api_key ?? null,
+      chatHistoryDays: row?.chat_history_days ?? null,
+    }
   } catch {
-    return { groqKey: null, deepseekKey: null, geminiKey: null }
+    return { groqKey: null, deepseekKey: null, geminiKey: null, chatHistoryDays: null }
   }
 }
 
@@ -293,6 +311,87 @@ export async function chatWithAI(
   } catch {
     return { success: false as const, error: "network" as const }
   }
+}
+
+// ─── Chat History ─────────────────────────────────────────────────────────────
+
+export type StoredMessage = {
+  id: string
+  role: "user" | "assistant"
+  content: string
+  provider: string | null
+  created_at: string
+}
+
+export async function loadChatHistory(): Promise<{ success: true; messages: StoredMessage[] } | { success: false; error: string }> {
+  try {
+    const user = await getAppUser()
+    if (!user) return { success: false, error: "UNAUTHORIZED" }
+    const supabase = createAdminClient()
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: keyRow } = await (supabase as any)
+      .from("user_api_keys")
+      .select("chat_history_days")
+      .eq("user_id", user.id)
+      .single()
+
+    const historyDays = (keyRow as { chat_history_days: number | null } | null)?.chat_history_days
+    if (!historyDays) return { success: true, messages: [] }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any)
+      .from("ai_chat_messages")
+      .select("id, role, content, provider, created_at")
+      .eq("user_id", user.id)
+      .gt("expires_at", new Date().toISOString())
+      .order("created_at", { ascending: true })
+
+    if (error) return { success: false, error: (error as { message: string }).message }
+    return { success: true, messages: (data ?? []) as StoredMessage[] }
+  } catch {
+    return { success: true, messages: [] }
+  }
+}
+
+export async function saveChatMessages(
+  msgs: Array<{ role: "user" | "assistant"; content: string; provider?: string }>,
+  historyDays: number,
+) {
+  const user = await getAppUser()
+  if (!user) return { success: false as const, error: "UNAUTHORIZED" }
+  const supabase = createAdminClient()
+
+  const expiresAt = new Date()
+  expiresAt.setDate(expiresAt.getDate() + historyDays)
+
+  const inserts = msgs.map(m => ({
+    user_id: user.id,
+    role: m.role,
+    content: m.content,
+    provider: m.provider ?? null,
+    expires_at: expiresAt.toISOString(),
+  }))
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any).from("ai_chat_messages").insert(inserts)
+  if (error) return { success: false as const, error: (error as { message: string }).message }
+  return { success: true as const }
+}
+
+export async function clearChatHistory() {
+  const user = await getAppUser()
+  if (!user) return { success: false as const, error: "UNAUTHORIZED" }
+  const supabase = createAdminClient()
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("ai_chat_messages")
+    .delete()
+    .eq("user_id", user.id)
+
+  if (error) return { success: false as const, error: (error as { message: string }).message }
+  return { success: true as const }
 }
 
 // ─── Shared Types ─────────────────────────────────────────────────────────────
