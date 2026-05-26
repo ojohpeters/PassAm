@@ -162,13 +162,14 @@ async function callDeepSeek(messages: ChatMessage[], apiKey: string, pdfContext?
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "deepseek-chat",
+      model: "deepseek-v4-flash",
       messages: [{ role: "system", content: system }, ...messages],
       max_tokens: 2048,
     }),
   })
 
   if (res.status === 401 || res.status === 403) return { ok: false, errorCode: "expired_deepseek" }
+  if (res.status === 402) return { ok: false, errorCode: "no_balance" }
   if (res.status === 429) return { ok: false, errorCode: "rate_limit" }
   if (!res.ok) return { ok: false, errorCode: "api_error" }
 
@@ -215,11 +216,15 @@ export async function chatWithAI(
 
   try {
     // Try DeepSeek first
+    let dsError: string | undefined
     if (deepseekKey?.trim()) {
       const ds = await callDeepSeek(messages, deepseekKey.trim(), pdfContext)
       if (ds.ok) return { success: true as const, content: ds.content!, provider: "deepseek" as const }
-      // Fall through to Groq for any error except rate limit
+      dsError = ds.errorCode
+      // Surface balance and rate-limit immediately — don't fall through
+      if (ds.errorCode === "no_balance") return { success: false as const, error: "no_balance" as const }
       if (ds.errorCode === "rate_limit") return { success: false as const, error: "rate_limit" as const }
+      // expired or api_error → try Groq fallback
     }
 
     // Groq fallback
@@ -231,7 +236,7 @@ export async function chatWithAI(
       return { success: false as const, error: "api_error" as const }
     }
 
-    return { success: false as const, error: "expired_deepseek" as const }
+    return { success: false as const, error: (dsError ?? "expired_deepseek") as "expired_deepseek" | "api_error" }
   } catch {
     return { success: false as const, error: "network" as const }
   }

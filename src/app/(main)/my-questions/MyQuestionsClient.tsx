@@ -297,14 +297,15 @@ export function MyQuestionsClient({ initialQuestions, initialGroqKey, initialDee
 
     if (!res.success) {
       const errMap: Record<string, string> = {
-        expired_deepseek: "Your DeepSeek key has expired or is invalid. Update it in the key panel.",
-        expired_groq: "Your Groq backup key has expired or is invalid. Update it in the key panel.",
+        expired_deepseek: "Your DeepSeek key is invalid. Double-check it in the key panel.",
+        expired_groq: "Your Groq backup key is invalid. Update it in the key panel.",
+        no_balance: "Your DeepSeek account has no credits. Add balance at platform.deepseek.com — or set up a free Groq backup key.",
         rate_limit: "Rate limit reached. Please wait a moment and try again.",
         no_key: "Please add a DeepSeek or Groq API key first.",
         network: "Network error. Please check your connection.",
         api_error: "The AI API returned an error. Please try again.",
       }
-      if (res.error === "expired_deepseek" || res.error === "expired_groq") setShowKeyPanel(true)
+      if (res.error === "expired_deepseek" || res.error === "expired_groq" || res.error === "no_balance") setShowKeyPanel(true)
       setMessages(prev => [...prev, { id: crypto.randomUUID(), role: "assistant", content: `⚠️ ${errMap[res.error] ?? "Something went wrong."}` }])
     } else {
       const csvBlock = extractCsvBlock(res.content)
