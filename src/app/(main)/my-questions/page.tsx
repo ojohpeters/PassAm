@@ -3,7 +3,7 @@ import type { UserQuestion } from "@/actions/user-questions.actions"
 import { MyQuestionsClient } from "./MyQuestionsClient"
 
 export default async function MyQuestionsPage() {
-  const [questionsResult, { groqKey, deepseekKey }] = await Promise.all([
+  const [questionsResult, { groqKey, deepseekKey, geminiKey }] = await Promise.all([
     getUserQuestions(),
     getApiKeys(),
   ])
@@ -21,6 +21,7 @@ export default async function MyQuestionsPage() {
 
       <MyQuestionsClient
         initialQuestions={questions}
+        initialGeminiKey={geminiKey}
         initialGroqKey={groqKey}
         initialDeepseekKey={deepseekKey}
       />

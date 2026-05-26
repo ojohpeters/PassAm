@@ -79,7 +79,7 @@ export async function deleteUserQuestion(id: string) {
 
 // ─── API Keys ─────────────────────────────────────────────────────────────────
 
-type ApiKeyRow = { groq_api_key: string | null; deepseek_api_key: string | null }
+type ApiKeyRow = { groq_api_key: string | null; deepseek_api_key: string | null; gemini_api_key: string | null }
 
 async function upsertKey(userId: string, patch: Partial<ApiKeyRow>) {
   const supabase = createAdminClient()
@@ -106,21 +106,29 @@ export async function saveDeepseekApiKey(key: string) {
   return { success: true as const }
 }
 
-export async function getApiKeys(): Promise<{ groqKey: string | null; deepseekKey: string | null }> {
+export async function saveGeminiApiKey(key: string) {
+  const user = await getAppUser()
+  if (!user) return { success: false as const, error: "UNAUTHORIZED" }
+  const err = await upsertKey(user.id, { gemini_api_key: key.trim() || null })
+  if (err) return { success: false as const, error: err }
+  return { success: true as const }
+}
+
+export async function getApiKeys(): Promise<{ groqKey: string | null; deepseekKey: string | null; geminiKey: string | null }> {
   try {
     const user = await getAppUser()
-    if (!user) return { groqKey: null, deepseekKey: null }
+    if (!user) return { groqKey: null, deepseekKey: null, geminiKey: null }
     const supabase = createAdminClient()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data } = await (supabase as any)
       .from("user_api_keys")
-      .select("groq_api_key, deepseek_api_key")
+      .select("groq_api_key, deepseek_api_key, gemini_api_key")
       .eq("user_id", user.id)
       .single()
     const row = data as ApiKeyRow | null
-    return { groqKey: row?.groq_api_key ?? null, deepseekKey: row?.deepseek_api_key ?? null }
+    return { groqKey: row?.groq_api_key ?? null, deepseekKey: row?.deepseek_api_key ?? null, geminiKey: row?.gemini_api_key ?? null }
   } catch {
-    return { groqKey: null, deepseekKey: null }
+    return { groqKey: null, deepseekKey: null, geminiKey: null }
   }
 }
 
@@ -152,6 +160,30 @@ Rules for CSV:
 - subject label should be a single word or short phrase
 
 Be encouraging, patient, and educational. Always root for the student's success.`
+
+// Gemini uses Google AI Studio's OpenAI-compatible endpoint — free tier, no credit card
+async function callGemini(messages: ChatMessage[], apiKey: string, pdfContext?: string): Promise<{ ok: boolean; content?: string; errorCode?: string }> {
+  const system = pdfContext
+    ? `${SYSTEM_PROMPT}\n\n---\nATTACHED DOCUMENT:\n${pdfContext.slice(0, 24000)}\n---`
+    : SYSTEM_PROMPT
+
+  const res = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "gemini-2.0-flash",
+      messages: [{ role: "system", content: system }, ...messages],
+      max_tokens: 2048,
+    }),
+  })
+
+  if (res.status === 401 || res.status === 403) return { ok: false, errorCode: "expired_gemini" }
+  if (res.status === 429) return { ok: false, errorCode: "rate_limit" }
+  if (!res.ok) return { ok: false, errorCode: "api_error" }
+
+  const data = await res.json() as { choices?: { message?: { content?: string } }[] }
+  return { ok: true, content: data.choices?.[0]?.message?.content ?? "" }
+}
 
 async function callDeepSeek(messages: ChatMessage[], apiKey: string, pdfContext?: string): Promise<{ ok: boolean; content?: string; errorCode?: string }> {
   const system = pdfContext
@@ -201,42 +233,48 @@ async function callGroq(messages: ChatMessage[], apiKey: string, pdfContext?: st
   return { ok: true, content: data.choices?.[0]?.message?.content ?? "" }
 }
 
+// Provider priority: Gemini (free) → Groq (free) → DeepSeek (paid)
 export async function chatWithAI(
   messages: ChatMessage[],
-  deepseekKey: string | null,
+  geminiKey: string | null,
   groqKey: string | null,
+  deepseekKey: string | null,
   pdfContext?: string,
 ) {
   const user = await getAppUser()
   if (!user) return { success: false as const, error: "no_key" as const }
 
-  if (!deepseekKey?.trim() && !groqKey?.trim()) {
+  if (!geminiKey?.trim() && !groqKey?.trim() && !deepseekKey?.trim()) {
     return { success: false as const, error: "no_key" as const }
   }
 
   try {
-    // Try DeepSeek first
-    let dsError: string | undefined
-    if (deepseekKey?.trim()) {
-      const ds = await callDeepSeek(messages, deepseekKey.trim(), pdfContext)
-      if (ds.ok) return { success: true as const, content: ds.content!, provider: "deepseek" as const }
-      dsError = ds.errorCode
-      // Surface balance and rate-limit immediately — don't fall through
-      if (ds.errorCode === "no_balance") return { success: false as const, error: "no_balance" as const }
-      if (ds.errorCode === "rate_limit") return { success: false as const, error: "rate_limit" as const }
-      // expired or api_error → try Groq fallback
+    // 1. Gemini (free primary)
+    if (geminiKey?.trim()) {
+      const gm = await callGemini(messages, geminiKey.trim(), pdfContext)
+      if (gm.ok) return { success: true as const, content: gm.content!, provider: "gemini" as const }
+      if (gm.errorCode === "rate_limit") return { success: false as const, error: "rate_limit" as const }
+      // expired/error → fall through to Groq
     }
 
-    // Groq fallback
+    // 2. Groq (free backup)
     if (groqKey?.trim()) {
       const gr = await callGroq(messages, groqKey.trim(), pdfContext)
       if (gr.ok) return { success: true as const, content: gr.content!, provider: "groq" as const }
-      if (gr.errorCode === "expired_groq") return { success: false as const, error: "expired_groq" as const }
       if (gr.errorCode === "rate_limit") return { success: false as const, error: "rate_limit" as const }
-      return { success: false as const, error: "api_error" as const }
+      // expired/error → fall through to DeepSeek
     }
 
-    return { success: false as const, error: (dsError ?? "expired_deepseek") as "expired_deepseek" | "api_error" }
+    // 3. DeepSeek (paid, optional)
+    if (deepseekKey?.trim()) {
+      const ds = await callDeepSeek(messages, deepseekKey.trim(), pdfContext)
+      if (ds.ok) return { success: true as const, content: ds.content!, provider: "deepseek" as const }
+      if (ds.errorCode === "no_balance") return { success: false as const, error: "no_balance" as const }
+      if (ds.errorCode === "rate_limit") return { success: false as const, error: "rate_limit" as const }
+      return { success: false as const, error: "expired_deepseek" as const }
+    }
+
+    return { success: false as const, error: "no_key" as const }
   } catch {
     return { success: false as const, error: "network" as const }
   }

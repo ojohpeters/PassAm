@@ -13,6 +13,7 @@ import {
   deleteUserQuestion,
   saveGroqApiKey,
   saveDeepseekApiKey,
+  saveGeminiApiKey,
   chatWithAI,
   type UserQuestion as Question,
 } from "@/actions/user-questions.actions"
@@ -35,7 +36,7 @@ type ChatMessage = {
   id: string
   role: "user" | "assistant"
   content: string
-  provider?: "deepseek" | "groq"
+  provider?: "gemini" | "groq" | "deepseek"
   csvRows?: ParsedRow[]
   isPdfNotice?: boolean
 }
@@ -110,11 +111,12 @@ async function extractPdfText(file: File): Promise<PdfAttachment> {
 
 type Props = {
   initialQuestions: Question[]
+  initialGeminiKey: string | null
   initialGroqKey: string | null
   initialDeepseekKey: string | null
 }
 
-export function MyQuestionsClient({ initialQuestions, initialGroqKey, initialDeepseekKey }: Props) {
+export function MyQuestionsClient({ initialQuestions, initialGeminiKey, initialGroqKey, initialDeepseekKey }: Props) {
   const [tab, setTab] = useState<"questions" | "upload" | "ai">("questions")
 
   // Questions tab
@@ -128,15 +130,18 @@ export function MyQuestionsClient({ initialQuestions, initialGroqKey, initialDee
   const [importing, setImporting] = useState(false)
   const [importMsg, setImportMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
-  // AI tab — keys
-  const [deepseekKey, setDeepseekKey] = useState(initialDeepseekKey ?? "")
-  const [savedDeepseekKey, setSavedDeepseekKey] = useState(initialDeepseekKey ?? "")
-  const [savingDsKey, setSavingDsKey] = useState(false)
+  // AI tab — keys (priority: Gemini free > Groq free > DeepSeek paid)
+  const [geminiKey, setGeminiKey] = useState(initialGeminiKey ?? "")
+  const [savedGeminiKey, setSavedGeminiKey] = useState(initialGeminiKey ?? "")
+  const [savingGeminiKey, setSavingGeminiKey] = useState(false)
   const [groqKey, setGroqKey] = useState(initialGroqKey ?? "")
   const [savedGroqKey, setSavedGroqKey] = useState(initialGroqKey ?? "")
   const [savingGroqKey, setSavingGroqKey] = useState(false)
+  const [deepseekKey, setDeepseekKey] = useState(initialDeepseekKey ?? "")
+  const [savedDeepseekKey, setSavedDeepseekKey] = useState(initialDeepseekKey ?? "")
+  const [savingDsKey, setSavingDsKey] = useState(false)
   const [keyMsg, setKeyMsg] = useState<{ ok: boolean; text: string } | null>(null)
-  const [showKeyPanel, setShowKeyPanel] = useState(!initialDeepseekKey && !initialGroqKey)
+  const [showKeyPanel, setShowKeyPanel] = useState(!initialGeminiKey && !initialGroqKey && !initialDeepseekKey)
 
   // AI tab — chat
   const [messages, setMessages] = useState<ChatMessage[]>([{
@@ -157,7 +162,7 @@ export function MyQuestionsClient({ initialQuestions, initialGroqKey, initialDee
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const hasAnyKey = !!(savedDeepseekKey.trim() || savedGroqKey.trim())
+  const hasAnyKey = !!(savedGeminiKey.trim() || savedGroqKey.trim() || savedDeepseekKey.trim())
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -222,12 +227,12 @@ export function MyQuestionsClient({ initialQuestions, initialGroqKey, initialDee
 
   // ── AI tab — keys ────────────────────────────────────────────────────────────
 
-  async function handleSaveDeepseek() {
-    setSavingDsKey(true); setKeyMsg(null)
-    const res = await saveDeepseekApiKey(deepseekKey)
-    if (res.success) { setSavedDeepseekKey(deepseekKey); setKeyMsg({ ok: true, text: "DeepSeek key saved." }) }
+  async function handleSaveGemini() {
+    setSavingGeminiKey(true); setKeyMsg(null)
+    const res = await saveGeminiApiKey(geminiKey)
+    if (res.success) { setSavedGeminiKey(geminiKey); setKeyMsg({ ok: true, text: "Gemini key saved." }); if (geminiKey.trim()) setShowKeyPanel(false) }
     else setKeyMsg({ ok: false, text: res.error ?? "Failed." })
-    setSavingDsKey(false)
+    setSavingGeminiKey(false)
   }
 
   async function handleSaveGroq() {
@@ -236,6 +241,14 @@ export function MyQuestionsClient({ initialQuestions, initialGroqKey, initialDee
     if (res.success) { setSavedGroqKey(groqKey); setKeyMsg({ ok: true, text: "Groq key saved." }) }
     else setKeyMsg({ ok: false, text: res.error ?? "Failed." })
     setSavingGroqKey(false)
+  }
+
+  async function handleSaveDeepseek() {
+    setSavingDsKey(true); setKeyMsg(null)
+    const res = await saveDeepseekApiKey(deepseekKey)
+    if (res.success) { setSavedDeepseekKey(deepseekKey); setKeyMsg({ ok: true, text: "DeepSeek key saved." }) }
+    else setKeyMsg({ ok: false, text: res.error ?? "Failed." })
+    setSavingDsKey(false)
   }
 
   // ── AI tab — PDF ─────────────────────────────────────────────────────────────
@@ -293,19 +306,20 @@ export function MyQuestionsClient({ initialQuestions, initialGroqKey, initialDee
     setAiInput("")
     setSending(true)
 
-    const res = await chatWithAI(history, savedDeepseekKey || null, savedGroqKey || null, pdfAttachment?.text)
+    const res = await chatWithAI(history, savedGeminiKey || null, savedGroqKey || null, savedDeepseekKey || null, pdfAttachment?.text)
 
     if (!res.success) {
       const errMap: Record<string, string> = {
-        expired_deepseek: "Your DeepSeek key is invalid. Double-check it in the key panel.",
-        expired_groq: "Your Groq backup key is invalid. Update it in the key panel.",
-        no_balance: "Your DeepSeek account has no credits. Add balance at platform.deepseek.com — or set up a free Groq backup key.",
+        expired_gemini: "Your Gemini key is invalid. Double-check it in the key panel.",
+        expired_groq: "Your Groq key is invalid. Update it in the key panel.",
+        expired_deepseek: "Your DeepSeek key is invalid. Update it in the key panel.",
+        no_balance: "Your DeepSeek account has no credits. Add balance at platform.deepseek.com — use the free Gemini or Groq keys instead.",
         rate_limit: "Rate limit reached. Please wait a moment and try again.",
-        no_key: "Please add a DeepSeek or Groq API key first.",
+        no_key: "Please add a free Gemini or Groq API key to get started.",
         network: "Network error. Please check your connection.",
         api_error: "The AI API returned an error. Please try again.",
       }
-      if (res.error === "expired_deepseek" || res.error === "expired_groq" || res.error === "no_balance") setShowKeyPanel(true)
+      if (["expired_gemini", "expired_groq", "expired_deepseek", "no_balance"].includes(res.error)) setShowKeyPanel(true)
       setMessages(prev => [...prev, { id: crypto.randomUUID(), role: "assistant", content: `⚠️ ${errMap[res.error] ?? "Something went wrong."}` }])
     } else {
       const csvBlock = extractCsvBlock(res.content)
@@ -540,11 +554,13 @@ export function MyQuestionsClient({ initialQuestions, initialGroqKey, initialDee
           {/* Key panel */}
           <div className="rounded-2xl border bg-muted/20 overflow-hidden">
             <button onClick={() => setShowKeyPanel(v => !v)} className="flex w-full items-center justify-between px-4 py-3 text-xs font-bold hover:bg-muted/40">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Key className="h-3.5 w-3.5 text-muted-foreground" />
                 <span>AI Keys</span>
-                {savedDeepseekKey ? <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">DeepSeek ✓</span> : <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">DeepSeek not set</span>}
-                {savedGroqKey && <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-black text-sky-700 dark:bg-sky-950/40 dark:text-sky-400">Groq backup ✓</span>}
+                {savedGeminiKey
+                  ? <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">Gemini ✓</span>
+                  : <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">Add free key</span>}
+                {savedGroqKey && <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-black text-sky-700 dark:bg-sky-950/40 dark:text-sky-400">Groq ✓</span>}
               </div>
               <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", showKeyPanel && "rotate-90")} />
             </button>
@@ -553,31 +569,33 @@ export function MyQuestionsClient({ initialQuestions, initialGroqKey, initialDee
               <div className="border-t px-4 pb-4 pt-3 space-y-4">
                 <div className="rounded-xl border bg-background/60 p-3 text-xs space-y-1.5">
                   <div className="flex items-start gap-1.5">
-                    <Info className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
-                    <p className="text-muted-foreground"><strong className="text-foreground">DeepSeek is primary</strong> — Groq is the automatic fallback if DeepSeek fails. Your keys are stored securely and only used server-side to call the AI.</p>
+                    <Info className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                    <p className="text-muted-foreground">
+                      <strong className="text-foreground">Both Gemini and Groq are completely free</strong> — no credit card, no spending. Gemini tries first, Groq is the automatic backup. DeepSeek is optional (paid).
+                    </p>
                   </div>
                 </div>
 
-                {/* DeepSeek */}
+                {/* Gemini — free primary */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-bold">DeepSeek API Key <span className="text-primary">(Primary)</span></p>
-                    <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-[10px] text-primary hover:underline">Get key <ExternalLink className="h-2.5 w-2.5" /></a>
+                    <p className="text-xs font-bold">Google Gemini API Key <span className="rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-black text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">FREE · Primary</span></p>
+                    <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-[10px] text-primary hover:underline">Get free key <ExternalLink className="h-2.5 w-2.5" /></a>
                   </div>
                   <div className="flex gap-2">
-                    <input type="password" value={deepseekKey} onChange={e => setDeepseekKey(e.target.value)} placeholder="sk-..." className="flex-1 rounded-xl border bg-background px-3 py-2 text-xs font-mono outline-none focus:ring-2 focus:ring-primary/30" />
-                    <button onClick={handleSaveDeepseek} disabled={savingDsKey} className="rounded-xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground hover:opacity-90 disabled:opacity-60">
-                      {savingDsKey ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
+                    <input type="password" value={geminiKey} onChange={e => setGeminiKey(e.target.value)} placeholder="AIza..." className="flex-1 rounded-xl border bg-background px-3 py-2 text-xs font-mono outline-none focus:ring-2 focus:ring-primary/30" />
+                    <button onClick={handleSaveGemini} disabled={savingGeminiKey} className="rounded-xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground hover:opacity-90 disabled:opacity-60">
+                      {savingGeminiKey ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
                     </button>
                   </div>
-                  <p className="text-[10px] text-muted-foreground">Free at platform.deepseek.com — sign up → API Keys → Create.</p>
+                  <p className="text-[10px] text-muted-foreground">Go to <strong>aistudio.google.com</strong> → Get API key → Create. No card required.</p>
                 </div>
 
-                {/* Groq */}
+                {/* Groq — free backup */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-bold">Groq API Key <span className="text-muted-foreground">(Backup)</span></p>
-                    <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-[10px] text-primary hover:underline">Get key <ExternalLink className="h-2.5 w-2.5" /></a>
+                    <p className="text-xs font-bold">Groq API Key <span className="rounded-md bg-sky-100 px-1.5 py-0.5 text-[10px] font-black text-sky-700 dark:bg-sky-950/40 dark:text-sky-400">FREE · Backup</span></p>
+                    <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="flex items-center gap-0.5 text-[10px] text-primary hover:underline">Get free key <ExternalLink className="h-2.5 w-2.5" /></a>
                   </div>
                   <div className="flex gap-2">
                     <input type="password" value={groqKey} onChange={e => setGroqKey(e.target.value)} placeholder="gsk_..." className="flex-1 rounded-xl border bg-background px-3 py-2 text-xs font-mono outline-none focus:ring-2 focus:ring-primary/30" />
@@ -585,8 +603,25 @@ export function MyQuestionsClient({ initialQuestions, initialGroqKey, initialDee
                       {savingGroqKey ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
                     </button>
                   </div>
-                  <p className="text-[10px] text-muted-foreground">Free at console.groq.com — sign up → API Keys → Create new.</p>
+                  <p className="text-[10px] text-muted-foreground">Go to <strong>console.groq.com</strong> → API Keys → Create new. No card required.</p>
                 </div>
+
+                {/* DeepSeek — paid optional */}
+                <details className="group">
+                  <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground list-none flex items-center gap-1">
+                    <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
+                    DeepSeek (optional, paid)
+                  </summary>
+                  <div className="mt-2 space-y-2 pl-4">
+                    <div className="flex gap-2">
+                      <input type="password" value={deepseekKey} onChange={e => setDeepseekKey(e.target.value)} placeholder="sk-..." className="flex-1 rounded-xl border bg-background px-3 py-2 text-xs font-mono outline-none focus:ring-2 focus:ring-primary/30" />
+                      <button onClick={handleSaveDeepseek} disabled={savingDsKey} className="rounded-xl border px-3 py-2 text-xs font-bold hover:bg-muted disabled:opacity-60">
+                        {savingDsKey ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">platform.deepseek.com — requires credits. Only needed if Gemini/Groq are unavailable.</p>
+                  </div>
+                </details>
 
                 {keyMsg && (
                   <div className={cn("flex items-center gap-1.5 text-xs font-semibold", keyMsg.ok ? "text-emerald-600" : "text-rose-600")}>
@@ -628,7 +663,9 @@ export function MyQuestionsClient({ initialQuestions, initialGroqKey, initialDee
                       {renderContent(msg.content)}
                     </div>
                     {msg.provider && (
-                      <p className="text-[10px] text-muted-foreground px-1">via {msg.provider === "deepseek" ? "DeepSeek" : "Groq (fallback)"}</p>
+                      <p className="text-[10px] text-muted-foreground px-1">
+                        via {msg.provider === "gemini" ? "Gemini" : msg.provider === "groq" ? "Groq" : "DeepSeek"}
+                      </p>
                     )}
                     {msg.csvRows && (
                       <button onClick={() => handleImportFromAi(msg.id, msg.csvRows!)} disabled={importingAiId === msg.id}
@@ -701,7 +738,7 @@ export function MyQuestionsClient({ initialQuestions, initialGroqKey, initialDee
           {!hasAnyKey && (
             <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs dark:border-amber-800/40 dark:bg-amber-950/20">
               <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
-              <span className="text-amber-700 dark:text-amber-400">Add a free DeepSeek or Groq API key above to unlock PrepAI.</span>
+              <span className="text-amber-700 dark:text-amber-400">Add a <strong>free</strong> Gemini or Groq API key above to unlock PrepAI. No credit card required.</span>
             </div>
           )}
         </div>
