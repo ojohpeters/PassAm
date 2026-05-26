@@ -52,8 +52,7 @@ export function WhatsAppButton() {
 
   const msg = MESSAGES[msgIndex]
 
-  const isSession = pathname.includes("/session")
-  if (isSession) return null
+  if (pathname.includes("/session") || pathname.startsWith("/prepai")) return null
 
   return (
     <div className="fixed bottom-24 right-4 z-50 md:bottom-6 md:right-6">
