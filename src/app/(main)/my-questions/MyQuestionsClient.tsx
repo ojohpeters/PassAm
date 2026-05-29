@@ -4,13 +4,15 @@ import { useState, useMemo } from "react"
 import Link from "next/link"
 import {
   Trash2, Search, Upload, Bot, Database, ChevronRight,
-  Download, AlertCircle, CheckCircle2, Loader2, BookPlus,
+  Download, AlertCircle, CheckCircle2, Loader2, BookPlus, Globe, Lock, Clock, Flag,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   getUserQuestions,
   bulkAddUserQuestions,
   deleteUserQuestion,
+  submitForCommunity,
+  withdrawFromCommunity,
   type UserQuestion as Question,
 } from "@/actions/user-questions.actions"
 
@@ -58,6 +60,25 @@ function parseAndValidateCsv(text: string): ParsedRow[] {
   })
 }
 
+// ─── Moderation status badge ──────────────────────────────────────────────────
+
+function StatusBadge({ status }: { status: Question["moderation_status"] }) {
+  if (status === "private") return null
+  const cfg = {
+    pending:  { icon: Clock,        label: "Pending review", cls: "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400" },
+    approved: { icon: Globe,        label: "Public",         cls: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400" },
+    rejected: { icon: Flag,         label: "Not approved",   cls: "bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400" },
+    flagged:  { icon: AlertCircle,  label: "Under review",   cls: "bg-orange-50 text-orange-700 dark:bg-orange-950/30 dark:text-orange-400" },
+  }[status]
+  if (!cfg) return null
+  const Icon = cfg.icon
+  return (
+    <span className={cn("inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold", cfg.cls)}>
+      <Icon className="h-2.5 w-2.5" />{cfg.label}
+    </span>
+  )
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 type Props = { initialQuestions: Question[] }
@@ -67,11 +88,13 @@ export function MyQuestionsClient({ initialQuestions }: Props) {
   const [questions, setQuestions] = useState<Question[]>(initialQuestions)
   const [search, setSearch] = useState("")
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [sharingId, setSharingId] = useState<string | null>(null)
 
   const [csvText, setCsvText] = useState("")
   const [preview, setPreview] = useState<ParsedRow[] | null>(null)
   const [importing, setImporting] = useState(false)
   const [importMsg, setImportMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [submitAfterImport, setSubmitAfterImport] = useState(false)
 
   const filteredQuestions = useMemo(() => {
     const q = search.toLowerCase()
@@ -84,6 +107,23 @@ export function MyQuestionsClient({ initialQuestions }: Props) {
     const res = await deleteUserQuestion(id)
     if (res.success) setQuestions(prev => prev.filter(q => q.id !== id))
     setDeletingId(null)
+  }
+
+  async function handleShare(q: Question) {
+    setSharingId(q.id)
+    const isShared = q.moderation_status !== "private"
+    const res = isShared ? await withdrawFromCommunity(q.id) : await submitForCommunity(q.id)
+    if (res.success) {
+      setQuestions(prev => prev.map(x => x.id === q.id
+        ? { ...x,
+            is_public: !isShared,
+            moderation_status: isShared ? "private" : "pending",
+            moderation_note: null,
+          }
+        : x
+      ))
+    }
+    setSharingId(null)
   }
 
   async function refetchQuestions() {
@@ -104,9 +144,20 @@ export function MyQuestionsClient({ initialQuestions }: Props) {
     setImporting(true)
     const res = await bulkAddUserQuestions(valid)
     if (res.success) {
-      setImportMsg({ ok: true, text: `${res.count} question${res.count !== 1 ? "s" : ""} added.` })
+      setImportMsg({ ok: true, text: `${res.count} question${res.count !== 1 ? "s" : ""} added to your bank.` })
       setCsvText(""); setPreview(null)
       await refetchQuestions()
+
+      // If user opted in, submit all freshly added questions for review
+      if (submitAfterImport) {
+        const fresh = await getUserQuestions()
+        if (fresh.success) {
+          const newest = (fresh.data as Question[]).slice(0, res.count)
+          await Promise.all(newest.map(q => submitForCommunity(q.id)))
+          await refetchQuestions()
+          setImportMsg({ ok: true, text: `${res.count} question${res.count !== 1 ? "s" : ""} added and submitted for community review.` })
+        }
+      }
     } else {
       setImportMsg({ ok: false, text: res.error ?? "Import failed." })
     }
@@ -163,6 +214,14 @@ export function MyQuestionsClient({ initialQuestions }: Props) {
               className="w-full rounded-xl border bg-background py-2.5 pl-9 pr-4 text-sm outline-none focus:ring-2 focus:ring-primary/30" />
           </div>
 
+          {/* Community questions link */}
+          <Link href="/community/questions"
+            className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/10 transition-colors">
+            <Globe className="h-3.5 w-3.5 shrink-0" />
+            Browse questions shared by other students
+            <ChevronRight className="h-3 w-3 ml-auto opacity-60" />
+          </Link>
+
           {filteredQuestions.length === 0 ? (
             <div className="rounded-2xl border-2 border-dashed bg-muted/20 p-12 text-center">
               <BookPlus className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
@@ -183,14 +242,45 @@ export function MyQuestionsClient({ initialQuestions }: Props) {
               {filteredQuestions.map(q => (
                 <div key={q.id} className="rounded-2xl border bg-background p-4 space-y-2">
                   <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      {q.subject_label && <span className="mb-1.5 inline-block rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">{q.subject_label}</span>}
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {q.subject_label && <span className="inline-block rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">{q.subject_label}</span>}
+                        <StatusBadge status={q.moderation_status} />
+                      </div>
                       <p className="text-sm font-semibold leading-snug">{q.q_text}</p>
+                      {q.moderation_note && q.moderation_status === "rejected" && (
+                        <p className="rounded-lg bg-rose-50 dark:bg-rose-950/20 px-2.5 py-1.5 text-[11px] text-rose-700 dark:text-rose-400">
+                          <span className="font-bold">Reason:</span> {q.moderation_note}
+                        </p>
+                      )}
                     </div>
-                    <button onClick={() => handleDelete(q.id)} disabled={deletingId === q.id}
-                      className="shrink-0 rounded-lg p-1.5 text-muted-foreground hover:bg-rose-50 hover:text-rose-600 disabled:opacity-40 dark:hover:bg-rose-950/30">
-                      {deletingId === q.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {/* Share / Withdraw button */}
+                      {(q.moderation_status === "private" || q.moderation_status === "rejected") && (
+                        <button
+                          onClick={() => handleShare(q)}
+                          disabled={sharingId === q.id}
+                          title="Share with community"
+                          className="rounded-lg p-1.5 text-muted-foreground hover:bg-primary/10 hover:text-primary disabled:opacity-40 transition-colors"
+                        >
+                          {sharingId === q.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Globe className="h-3.5 w-3.5" />}
+                        </button>
+                      )}
+                      {(q.moderation_status === "pending" || q.moderation_status === "approved" || q.moderation_status === "flagged") && (
+                        <button
+                          onClick={() => handleShare(q)}
+                          disabled={sharingId === q.id}
+                          title="Make private"
+                          className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40 transition-colors"
+                        >
+                          {sharingId === q.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Lock className="h-3.5 w-3.5" />}
+                        </button>
+                      )}
+                      <button onClick={() => handleDelete(q.id)} disabled={deletingId === q.id}
+                        className="rounded-lg p-1.5 text-muted-foreground hover:bg-rose-50 hover:text-rose-600 disabled:opacity-40 dark:hover:bg-rose-950/30">
+                        {deletingId === q.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-1">
                     {OPTION_KEYS.map((key, i) => {
@@ -265,6 +355,28 @@ export function MyQuestionsClient({ initialQuestions }: Props) {
             className="w-full rounded-2xl border bg-background p-3 font-mono text-xs outline-none focus:ring-2 focus:ring-primary/30 resize-y"
           />
 
+          {/* Community share toggle */}
+          <label className="flex items-center gap-2.5 cursor-pointer select-none">
+            <div
+              onClick={() => setSubmitAfterImport(v => !v)}
+              className={cn(
+                "relative h-5 w-9 rounded-full transition-colors",
+                submitAfterImport ? "bg-primary" : "bg-muted-foreground/30"
+              )}
+            >
+              <span className={cn(
+                "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform",
+                submitAfterImport ? "translate-x-4" : "translate-x-0.5"
+              )} />
+            </div>
+            <span className="text-xs font-semibold text-foreground">Submit for community review after importing</span>
+          </label>
+          {submitAfterImport && (
+            <p className="rounded-xl bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+              Questions will go into a pending queue. Once approved they&apos;ll be visible to all PrepIQ students.
+            </p>
+          )}
+
           <div className="flex gap-2">
             <button onClick={handlePreview} disabled={!csvText.trim()}
               className="rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground hover:opacity-90 disabled:opacity-40">
@@ -311,6 +423,7 @@ export function MyQuestionsClient({ initialQuestions }: Props) {
                   className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground hover:opacity-90 disabled:opacity-60">
                   {importing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
                   Import {validPreview.length} question{validPreview.length !== 1 ? "s" : ""}
+                  {submitAfterImport && " + submit for review"}
                 </button>
               )}
             </div>

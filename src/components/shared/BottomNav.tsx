@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Trophy, Calendar, UserCircle, MoreHorizontal, BarChart2, MessageCircleHeart, Globe, X, Lightbulb, Users, Zap, BookOpen, BookX, Target, Layers, GaugeCircle, LibraryBig, Bot } from "lucide-react"
+import { LayoutDashboard, Trophy, Calendar, UserCircle, MoreHorizontal, BarChart2, MessageCircleHeart, Globe, X, Lightbulb, Users, Zap, BookOpen, BookX, Target, Layers, GaugeCircle, LibraryBig, Bot, BookMarked } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useState } from "react"
 
@@ -23,7 +23,8 @@ const MORE_ITEMS = [
   { href: "/error-log",    label: "Error Log",    icon: BookX               },
   { href: "/weak-spots",   label: "Weak Spots",   icon: Target              },
   { href: "/tips",         label: "Study Tips",   icon: Lightbulb           },
-  { href: "/community",    label: "Community",    icon: Users               },
+  { href: "/community/questions", label: "Community Q's", icon: BookMarked },
+  { href: "/community",          label: "Community",    icon: Users      },
   { href: "/analytics",    label: "Analytics",    icon: BarChart2           },
   { href: "/exam/general", label: "General Exam", icon: Globe               },
   { href: "/contact",      label: "About & Help", icon: MessageCircleHeart  },

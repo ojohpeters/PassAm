@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { LayoutDashboard, BookOpen, Users, Bell, MessageSquare, ChevronLeft, LogOut, BookMarked, School, Library, Building2, Lightbulb, ClipboardList, Radio, Layers, ClipboardCheck } from "lucide-react"
+import { LayoutDashboard, BookOpen, Users, Bell, MessageSquare, ChevronLeft, LogOut, BookMarked, School, Library, Building2, Lightbulb, ClipboardList, Radio, Layers, ClipboardCheck, ShieldCheck } from "lucide-react"
 import { signOutAction } from "@/actions/auth.actions"
 
 const NAV = [
@@ -19,7 +19,8 @@ const NAV = [
   { href: "/admin/notifications", label: "Notifications",  icon: Bell                         },
   { href: "/admin/feedback",      label: "Reports",        icon: MessageSquare                },
   { href: "/admin/log-attendants",   label: "Log Attendants",   icon: ClipboardList },
-  { href: "/admin/brainstorm-hosts", label: "Brainstorm Hosts", icon: Radio         },
+  { href: "/admin/brainstorm-hosts",  label: "Brainstorm Hosts",  icon: Radio        },
+  { href: "/admin/community-queue",   label: "Community Queue",   icon: ShieldCheck  },
 ]
 
 export function AdminSidebar({ onClose }: { onClose?: () => void }) {

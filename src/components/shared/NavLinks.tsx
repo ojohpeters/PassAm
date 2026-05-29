@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Trophy, BarChart2, Calendar, UserCircle, MessageCircleHeart, Lightbulb, Users, Zap, BookOpen, BookX, Target, Layers, GaugeCircle, LibraryBig, Bot } from "lucide-react"
+import { LayoutDashboard, Trophy, BarChart2, Calendar, UserCircle, MessageCircleHeart, Lightbulb, Users, Zap, BookOpen, BookX, Target, Layers, GaugeCircle, LibraryBig, Bot, Globe } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const NAV = [
@@ -19,7 +19,8 @@ const NAV = [
   { href: "/analytics",   label: "Analytics",   icon: BarChart2 },
   { href: "/daily-quiz",  label: "Daily Quiz",  icon: Calendar },
   { href: "/tips",        label: "Study Tips",  icon: Lightbulb },
-  { href: "/community",   label: "Community",   icon: Users },
+  { href: "/community/questions", label: "Community Q's", icon: Globe  },
+  { href: "/community",          label: "Community",     icon: Users  },
   { href: "/profile",     label: "Profile",     icon: UserCircle },
   { href: "/contact",     label: "About & Help", icon: MessageCircleHeart },
 ]
@@ -30,7 +31,7 @@ export function NavLinks() {
   return (
     <nav className="flex-1 space-y-0.5 p-3">
       {NAV.map(({ href, label, icon: Icon }) => {
-        const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(href))
+        const active = pathname === href || (href !== "/dashboard" && href !== "/community" && pathname.startsWith(href))
         return (
           <Link
             key={href}

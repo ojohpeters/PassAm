@@ -27,7 +27,7 @@ export async function getUserQuestions() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)
     .from("user_questions")
-    .select("id, q_text, opt_a, opt_b, opt_c, opt_d, correct, explanation, subject_label, created_at")
+    .select("id, q_text, opt_a, opt_b, opt_c, opt_d, correct, explanation, subject_label, created_at, is_public, moderation_status, moderation_note")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
 
@@ -394,6 +394,216 @@ export async function clearChatHistory() {
   return { success: true as const }
 }
 
+// ─── Community Questions ──────────────────────────────────────────────────────
+
+const MAX_PENDING = 10
+const AUTO_FLAG_THRESHOLD = 3
+
+export async function submitForCommunity(questionId: string) {
+  const user = await getAppUser()
+  if (!user) return { success: false as const, error: "UNAUTHORIZED" }
+  const supabase = createAdminClient()
+
+  // Rate-limit: no more than MAX_PENDING in review at once
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { count } = await (supabase as any)
+    .from("user_questions")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", user.id)
+    .eq("moderation_status", "pending")
+
+  if ((count ?? 0) >= MAX_PENDING) {
+    return { success: false as const, error: "MAX_PENDING" }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("user_questions")
+    .update({ is_public: true, moderation_status: "pending", moderation_note: null })
+    .eq("id", questionId)
+    .eq("user_id", user.id)
+
+  if (error) return { success: false as const, error: (error as { message: string }).message }
+  return { success: true as const }
+}
+
+export async function withdrawFromCommunity(questionId: string) {
+  const user = await getAppUser()
+  if (!user) return { success: false as const, error: "UNAUTHORIZED" }
+  const supabase = createAdminClient()
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("user_questions")
+    .update({ is_public: false, moderation_status: "private", moderation_note: null })
+    .eq("id", questionId)
+    .eq("user_id", user.id)
+
+  if (error) return { success: false as const, error: (error as { message: string }).message }
+  return { success: true as const }
+}
+
+export type CommunityQuestion = {
+  id: string
+  q_text: string
+  opt_a: string
+  opt_b: string
+  opt_c: string
+  opt_d: string
+  correct: string
+  explanation: string | null
+  subject_label: string | null
+  created_at: string
+}
+
+export async function getCommunityQuestions(opts?: {
+  subject?: string
+  search?: string
+  page?: number
+}): Promise<{ success: true; data: CommunityQuestion[]; total: number; subjects: string[] } | { success: false; error: string }> {
+  const user = await getAppUser()
+  if (!user) return { success: false, error: "UNAUTHORIZED" }
+  const supabase = createAdminClient()
+
+  const page = opts?.page ?? 1
+  const limit = 24
+  const offset = (page - 1) * limit
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let query = (supabase as any)
+    .from("user_questions")
+    .select("id, q_text, opt_a, opt_b, opt_c, opt_d, correct, explanation, subject_label, created_at", { count: "exact" })
+    .eq("is_public", true)
+    .eq("moderation_status", "approved")
+
+  if (opts?.subject) query = query.eq("subject_label", opts.subject)
+  if (opts?.search) query = query.ilike("q_text", `%${opts.search}%`)
+
+  const { data, count, error } = await query
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1)
+
+  if (error) return { success: false, error: (error as { message: string }).message }
+
+  // Fetch distinct subjects for filter pills
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: subjectRows } = await (supabase as any)
+    .from("user_questions")
+    .select("subject_label")
+    .eq("is_public", true)
+    .eq("moderation_status", "approved")
+    .not("subject_label", "is", null)
+
+  const subjects: string[] = Array.from(
+    new Set((subjectRows ?? []).map((r: { subject_label: string }) => r.subject_label).filter(Boolean))
+  ).sort() as string[]
+
+  return { success: true, data: (data ?? []) as CommunityQuestion[], total: count ?? 0, subjects }
+}
+
+export async function reportCommunityQuestion(questionId: string, reason: string) {
+  const user = await getAppUser()
+  if (!user) return { success: false as const, error: "UNAUTHORIZED" }
+  const supabase = createAdminClient()
+
+  const trimmedReason = reason.trim().slice(0, 500)
+  if (trimmedReason.length < 5) return { success: false as const, error: "REASON_TOO_SHORT" }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("question_reports")
+    .insert({ question_id: questionId, reporter_id: user.id, reason: trimmedReason })
+
+  if (error) {
+    if ((error as { code?: string }).code === "23505") return { success: false as const, error: "ALREADY_REPORTED" }
+    return { success: false as const, error: (error as { message: string }).message }
+  }
+
+  // Auto-flag if reports hit threshold
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { count } = await (supabase as any)
+    .from("question_reports")
+    .select("*", { count: "exact", head: true })
+    .eq("question_id", questionId)
+
+  if ((count ?? 0) >= AUTO_FLAG_THRESHOLD) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any)
+      .from("user_questions")
+      .update({ moderation_status: "flagged" })
+      .eq("id", questionId)
+      .eq("is_public", true)
+      .eq("moderation_status", "approved")
+  }
+
+  return { success: true as const }
+}
+
+// ─── Admin: Moderation Queue ──────────────────────────────────────────────────
+
+export type ModerationItem = {
+  id: string
+  q_text: string
+  opt_a: string
+  opt_b: string
+  opt_c: string
+  opt_d: string
+  correct: string
+  explanation: string | null
+  subject_label: string | null
+  created_at: string
+  moderation_status: string
+  user_id: string
+  report_count: number
+}
+
+export async function getModerationQueue(): Promise<{ success: true; data: ModerationItem[] } | { success: false; error: string }> {
+  const user = await getAppUser()
+  if (!user || user.role !== "ADMIN") return { success: false, error: "UNAUTHORIZED" }
+  const supabase = createAdminClient()
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from("user_questions")
+    .select("id, q_text, opt_a, opt_b, opt_c, opt_d, correct, explanation, subject_label, created_at, moderation_status, user_id")
+    .in("moderation_status", ["pending", "flagged"])
+    .order("moderation_status", { ascending: false }) // flagged first
+    .order("created_at", { ascending: true })
+
+  if (error) return { success: false, error: (error as { message: string }).message }
+
+  // Enrich with report counts
+  const items = await Promise.all((data ?? []).map(async (row: ModerationItem) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { count } = await (supabase as any)
+      .from("question_reports")
+      .select("*", { count: "exact", head: true })
+      .eq("question_id", row.id)
+    return { ...row, report_count: count ?? 0 }
+  }))
+
+  return { success: true, data: items as ModerationItem[] }
+}
+
+export async function moderateQuestion(questionId: string, action: "approve" | "reject", note?: string) {
+  const user = await getAppUser()
+  if (!user || user.role !== "ADMIN") return { success: false as const, error: "UNAUTHORIZED" }
+  const supabase = createAdminClient()
+
+  const update = action === "approve"
+    ? { moderation_status: "approved", moderation_note: null }
+    : { moderation_status: "rejected", is_public: false, moderation_note: note?.trim() || null }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("user_questions")
+    .update(update)
+    .eq("id", questionId)
+
+  if (error) return { success: false as const, error: (error as { message: string }).message }
+  return { success: true as const }
+}
+
 // ─── Shared Types ─────────────────────────────────────────────────────────────
 
 export type UserQuestion = {
@@ -407,4 +617,7 @@ export type UserQuestion = {
   explanation: string | null
   subject_label: string | null
   created_at: string
+  is_public: boolean
+  moderation_status: "private" | "pending" | "approved" | "rejected" | "flagged"
+  moderation_note: string | null
 }
