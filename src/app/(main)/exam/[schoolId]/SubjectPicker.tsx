@@ -394,13 +394,15 @@ export function SubjectPicker({
 
   // ── Mock exam layout ────────────────────────────────────────────────────────
   const selectedCount = selected.size
-  const perSubject = selectedCount > 0 ? Math.floor(totalQuestions / selectedCount) : 0
+  const totalAvailable = Array.from(selected).reduce((sum, id) => sum + (subjectCounts[id] ?? 0), 0)
+  const effectiveQ = selectedCount > 0 && totalAvailable > 0 ? Math.min(totalQuestions, totalAvailable) : totalQuestions
+  const perSubject = selectedCount > 0 ? Math.floor(effectiveQ / selectedCount) : 0
   const canBegin = selectedCount >= 1
   const availablePresets = PRESETS.filter(p => p.match.every(name => subjects.some(s => s.name === name)))
 
   return (
     <div className="min-h-full bg-background pb-12">
-      <BackHeader subtitle={`Mock Exam · ${totalQuestions} questions · ${durationMins} min`} />
+      <BackHeader subtitle={`Mock Exam · ${effectiveQ} questions · ${durationMins} min`} />
 
       <div className="mx-auto max-w-lg space-y-6 px-4 pt-6 md:px-6">
 
@@ -462,6 +464,14 @@ export function SubjectPicker({
             </button>
             <span className="text-xs text-muted-foreground shrink-0">questions</span>
           </div>
+          {selectedCount > 0 && totalAvailable > 0 && totalQuestions > totalAvailable && (
+            <div className="flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2.5 dark:bg-amber-950/20">
+              <span className="text-sm shrink-0">ℹ️</span>
+              <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+                Only <strong>{totalAvailable}</strong> question{totalAvailable !== 1 ? "s" : ""} available for your selected subjects — you&apos;ll get all {totalAvailable}.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Time limit */}

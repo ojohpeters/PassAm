@@ -36,9 +36,11 @@ export function GeneralSubjectPicker({
   }
 
   const selectedCount = selected.size
-  const perSubject = selectedCount > 0 ? Math.floor(totalQuestions / selectedCount) : 0
+  const totalAvailable = Array.from(selected).reduce((sum, id) => sum + (subjectCounts[id] ?? 0), 0)
+  const effectiveQ = selectedCount > 0 && totalAvailable > 0 ? Math.min(totalQuestions, totalAvailable) : totalQuestions
+  const perSubject = selectedCount > 0 ? Math.floor(effectiveQ / selectedCount) : 0
   const canBegin = selectedCount >= 1
-  const timeMins = Math.round((totalQuestions * 90) / 60)
+  const timeMins = Math.round((effectiveQ * 90) / 60)
 
   async function handleStart() {
     if (!canBegin) return
@@ -74,7 +76,7 @@ export function GeneralSubjectPicker({
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
             {[
-              { icon: "📋", label: `${totalQuestions} questions` },
+              { icon: "📋", label: `${effectiveQ} question${effectiveQ !== 1 ? "s" : ""}` },
               { icon: "⏱️", label: `${timeMins} minutes` },
               { icon: "🌐", label: "All schools combined" },
             ].map(({ icon, label }) => (
@@ -138,7 +140,16 @@ export function GeneralSubjectPicker({
               <Plus className="h-4 w-4" />
             </button>
           </div>
-          <p className="text-xs text-muted-foreground">Any number of questions — as many as are available.</p>
+          {selectedCount > 0 && totalAvailable > 0 && totalQuestions > totalAvailable ? (
+            <div className="flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2.5 dark:bg-amber-950/20">
+              <span className="text-sm shrink-0">ℹ️</span>
+              <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+                Only <strong>{totalAvailable}</strong> question{totalAvailable !== 1 ? "s" : ""} available for your selected subjects — you&apos;ll get all {totalAvailable}.
+              </p>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">Any number of questions — as many as are available.</p>
+          )}
         </div>
 
         {/* Subject selector */}
