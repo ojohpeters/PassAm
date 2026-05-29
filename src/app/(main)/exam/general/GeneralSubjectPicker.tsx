@@ -13,12 +13,18 @@ type Subject = { id: string; name: string }
 export function GeneralSubjectPicker({
   subjects,
   subjectCounts,
+  personalCountsBySubject,
+  communityCountsBySubject,
 }: {
   subjects: Subject[]
   subjectCounts: Record<string, number>
+  personalCountsBySubject: Record<string, number>
+  communityCountsBySubject: Record<string, number>
 }) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+  const [includePersonal, setIncludePersonal] = useState(false)
+  const [includeCommunity, setIncludeCommunity] = useState(false)
 
   const englishSubject = subjects.find((s) => s.name === "English Language")
   const [selected, setSelected] = useState<Set<string>>(
@@ -42,10 +48,21 @@ export function GeneralSubjectPicker({
   const canBegin = selectedCount >= 1
   const timeMins = Math.round((effectiveQ * 90) / 60)
 
+  const matchingPersonal = Array.from(selected).reduce((sum, id) => {
+    const name = subjects.find(s => s.id === id)?.name?.toLowerCase() ?? ""
+    return sum + (personalCountsBySubject[name] ?? 0)
+  }, 0)
+  const matchingCommunity = Array.from(selected).reduce((sum, id) => {
+    const name = subjects.find(s => s.id === id)?.name?.toLowerCase() ?? ""
+    return sum + (communityCountsBySubject[name] ?? 0)
+  }, 0)
+  const hasPersonal = Object.values(personalCountsBySubject).some(v => v > 0)
+  const hasCommunity = Object.values(communityCountsBySubject).some(v => v > 0)
+
   async function handleStart() {
     if (!canBegin) return
     setLoading(true)
-    const result = await startGeneralExam(Array.from(selected), totalQuestions)
+    const result = await startGeneralExam(Array.from(selected), totalQuestions, includePersonal, includeCommunity)
     if (!result.success) {
       const msg =
         result.error === "INSUFFICIENT_QUESTIONS"
@@ -201,6 +218,41 @@ export function GeneralSubjectPicker({
             })}
           </div>
         </div>
+
+        {/* Include personal/community questions */}
+        {(hasPersonal || hasCommunity) && (
+          <div className="rounded-2xl border bg-background p-4 space-y-2.5">
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Also Include</p>
+            {hasPersonal && (
+              <label className="flex items-center justify-between gap-3 cursor-pointer select-none">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold">My personal questions</p>
+                  <p className="text-xs text-muted-foreground">
+                    {selectedCount > 0 ? `${matchingPersonal} matching your selected subjects` : `${Object.values(personalCountsBySubject).reduce((a, b) => a + b, 0)} in your bank`}
+                  </p>
+                </div>
+                <div onClick={() => setIncludePersonal(v => !v)}
+                  className={cn("relative h-5 w-9 rounded-full shrink-0 transition-colors cursor-pointer", includePersonal ? "bg-primary" : "bg-muted-foreground/30")}>
+                  <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform", includePersonal ? "translate-x-4" : "translate-x-0.5")} />
+                </div>
+              </label>
+            )}
+            {hasCommunity && (
+              <label className="flex items-center justify-between gap-3 cursor-pointer select-none">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold">Community questions</p>
+                  <p className="text-xs text-muted-foreground">
+                    {selectedCount > 0 ? `${matchingCommunity} matching your selected subjects` : `${Object.values(communityCountsBySubject).reduce((a, b) => a + b, 0)} approved questions`}
+                  </p>
+                </div>
+                <div onClick={() => setIncludeCommunity(v => !v)}
+                  className={cn("relative h-5 w-9 rounded-full shrink-0 transition-colors cursor-pointer", includeCommunity ? "bg-primary" : "bg-muted-foreground/30")}>
+                  <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform", includeCommunity ? "translate-x-4" : "translate-x-0.5")} />
+                </div>
+              </label>
+            )}
+          </div>
+        )}
 
         {/* Start button */}
         <button

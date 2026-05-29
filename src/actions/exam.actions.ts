@@ -5,6 +5,7 @@ import { getAppUser } from "@/lib/auth"
 import { submitExamSchema } from "@/lib/validations/exam"
 import { updateStreak } from "./notification.actions"
 import type { ActionResult, QuestionWithOptions, ExamResult, StudyQuestion } from "@/types"
+import { USER_OPTION_IDS, PERSONAL_SUBJECT_ID, labelFromUserOptionId } from "@/lib/user-exam-options"
 
 const EXAM_QUESTION_COUNT = 40
 const EXAM_TIME_LIMIT_SECS = 3600
@@ -33,6 +34,31 @@ async function getSeenQuestionIds(
   return new Set((answers ?? []).map((a) => a.question_id))
 }
 
+// Normalises a user_questions row into the QuestionWithOptions shape used by ExamShell.
+function normalizeUserQuestion(
+  uq: { id: string; q_text: string; opt_a: string; opt_b: string; opt_c: string; opt_d: string; explanation: string | null; subject_label: string | null },
+  subjectId: string,
+  subjectName: string,
+): QuestionWithOptions {
+  return {
+    id: uq.id,
+    text: uq.q_text,
+    image_url: null,
+    explanation: uq.explanation,
+    year: null,
+    school_id: PERSONAL_SUBJECT_ID,
+    subject_id: subjectId,
+    options: [
+      { id: USER_OPTION_IDS.A, label: "A", text: uq.opt_a },
+      { id: USER_OPTION_IDS.B, label: "B", text: uq.opt_b },
+      { id: USER_OPTION_IDS.C, label: "C", text: uq.opt_c },
+      { id: USER_OPTION_IDS.D, label: "D", text: uq.opt_d },
+    ],
+    subject: { name: subjectName },
+    passage: null,
+  }
+}
+
 // Shuffles a pool, putting unseen questions first and seen ones last.
 // This guarantees variety across repeated exam attempts.
 function shuffleWithPriority<T extends { id: string }>(
@@ -50,7 +76,9 @@ export async function startExam(
   totalQuestions = 10,
   perSubjectCounts?: Record<string, number>,
   studentDurationMins?: number,
-  year?: number
+  year?: number,
+  includePersonal?: boolean,
+  includeCommunity?: boolean,
 ): Promise<ActionResult<{ attemptId: string; questions: QuestionWithOptions[]; timeLimitSecs: number }>> {
   const user = await getAppUser()
   if (!user) return { success: false, error: "UNAUTHORIZED" }
@@ -127,12 +155,54 @@ export async function startExam(
 
   if (selected.length === 0) return { success: false, error: "INSUFFICIENT_QUESTIONS" }
 
+  // ── Personal / community bank questions ─────────────────────────────────────
+  const userSelected: QuestionWithOptions[] = []
+  const userAnswerInserts: { user_question_id: string; subject_name: string | null }[] = []
+
+  if (includePersonal || includeCommunity) {
+    // Build name→id map for the selected subjects
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: subjectRows } = await (admin as any)
+      .from("subjects").select("id, name").in("id", subjectIds)
+    const subjectByName = new Map<string, { id: string; name: string }>(
+      (subjectRows ?? []).map((s: { id: string; name: string }) => [s.name.toLowerCase(), s])
+    )
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let uqQuery = (admin as any)
+      .from("user_questions")
+      .select("id, q_text, opt_a, opt_b, opt_c, opt_d, explanation, subject_label")
+
+    if (includePersonal && !includeCommunity) {
+      uqQuery = uqQuery.eq("user_id", user.id).not("is_public", "eq", true).or(`moderation_status.eq.private,moderation_status.eq.rejected`)
+    } else if (includeCommunity && !includePersonal) {
+      uqQuery = uqQuery.eq("is_public", true).eq("moderation_status", "approved")
+    } else {
+      // both — get own private + approved community
+      uqQuery = uqQuery.or(`user_id.eq.${user.id},and(is_public.eq.true,moderation_status.eq.approved)`)
+    }
+
+    const { data: uqPool } = await uqQuery
+    const shuffled = (uqPool ?? []).sort(() => Math.random() - 0.5)
+
+    for (const uq of shuffled) {
+      const labelKey = (uq.subject_label ?? "").toLowerCase()
+      const match = subjectByName.get(labelKey)
+      const subjectId = match?.id ?? PERSONAL_SUBJECT_ID
+      const subjectName = match?.name ?? uq.subject_label ?? "My Questions"
+      userSelected.push(normalizeUserQuestion(uq, subjectId, subjectName))
+      userAnswerInserts.push({ user_question_id: uq.id, subject_name: subjectName })
+    }
+  }
+
+  const allSelected = [...selected, ...userSelected]
+
   const { data: attempt, error: attemptErr } = await admin
     .from("exam_attempts")
     .insert({
       user_id: user.id,
       school_id: schoolId,
-      total_questions: selected.length,
+      total_questions: allSelected.length,
       score: 0,
     })
     .select("id")
@@ -149,15 +219,24 @@ export async function startExam(
     }))
   )
 
+  if (userAnswerInserts.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (admin as any).from("attempt_user_answers").insert(
+      userAnswerInserts.map((r) => ({ attempt_id: attempt.id, ...r }))
+    )
+  }
+
   return {
     success: true,
-    data: { attemptId: attempt.id, questions: selected, timeLimitSecs },
+    data: { attemptId: attempt.id, questions: allSelected, timeLimitSecs },
   }
 }
 
 export async function startGeneralExam(
   subjectIds: string[],
-  totalQuestions = 10
+  totalQuestions = 10,
+  includePersonal?: boolean,
+  includeCommunity?: boolean,
 ): Promise<ActionResult<{ attemptId: string; questions: QuestionWithOptions[]; timeLimitSecs: number }>> {
   const user = await getAppUser()
   if (!user) return { success: false, error: "UNAUTHORIZED" }
@@ -210,12 +289,52 @@ export async function startGeneralExam(
     selected.push(...picked)
   }
 
+  // ── Personal / community bank questions (general exam) ──────────────────────
+  const userSelected: QuestionWithOptions[] = []
+  const userAnswerInserts2: { user_question_id: string; subject_name: string | null }[] = []
+
+  if (includePersonal || includeCommunity) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: subjectRows2 } = await (admin as any)
+      .from("subjects").select("id, name").in("id", subjectIds)
+    const subjectByName2 = new Map<string, { id: string; name: string }>(
+      (subjectRows2 ?? []).map((s: { id: string; name: string }) => [s.name.toLowerCase(), s])
+    )
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let uqQuery2 = (admin as any)
+      .from("user_questions")
+      .select("id, q_text, opt_a, opt_b, opt_c, opt_d, explanation, subject_label")
+
+    if (includePersonal && !includeCommunity) {
+      uqQuery2 = uqQuery2.eq("user_id", user.id).not("is_public", "eq", true).or(`moderation_status.eq.private,moderation_status.eq.rejected`)
+    } else if (includeCommunity && !includePersonal) {
+      uqQuery2 = uqQuery2.eq("is_public", true).eq("moderation_status", "approved")
+    } else {
+      uqQuery2 = uqQuery2.or(`user_id.eq.${user.id},and(is_public.eq.true,moderation_status.eq.approved)`)
+    }
+
+    const { data: uqPool2 } = await uqQuery2
+    const shuffled2 = (uqPool2 ?? []).sort(() => Math.random() - 0.5)
+
+    for (const uq of shuffled2) {
+      const labelKey = (uq.subject_label ?? "").toLowerCase()
+      const match = subjectByName2.get(labelKey)
+      const subjectId = match?.id ?? PERSONAL_SUBJECT_ID
+      const subjectName = match?.name ?? uq.subject_label ?? "My Questions"
+      userSelected.push(normalizeUserQuestion(uq, subjectId, subjectName))
+      userAnswerInserts2.push({ user_question_id: uq.id, subject_name: subjectName })
+    }
+  }
+
+  const allSelected2 = [...selected, ...userSelected]
+
   const { data: attempt, error: attemptErr } = await admin
     .from("exam_attempts")
     .insert({
       user_id: user.id,
       school_id: generalSchool.id,
-      total_questions: selected.length,
+      total_questions: allSelected2.length,
       score: 0,
     })
     .select("id")
@@ -232,9 +351,16 @@ export async function startGeneralExam(
     }))
   )
 
+  if (userAnswerInserts2.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (admin as any).from("attempt_user_answers").insert(
+      userAnswerInserts2.map((r) => ({ attempt_id: attempt.id, ...r }))
+    )
+  }
+
   return {
     success: true,
-    data: { attemptId: attempt.id, questions: selected, timeLimitSecs: selected.length * SECS_PER_QUESTION },
+    data: { attemptId: attempt.id, questions: allSelected2, timeLimitSecs: allSelected2.length * SECS_PER_QUESTION },
   }
 }
 
@@ -299,6 +425,36 @@ export async function submitExam(
     .upsert(upsertRows, { onConflict: "attempt_id,question_id" })
 
   if (upsertErr) return { success: false, error: "INTERNAL" }
+
+  // ── Grade personal/community question answers ────────────────────────────
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: userExistingAnswers } = await (admin as any)
+    .from("attempt_user_answers")
+    .select("user_question_id, subject_name")
+    .eq("attempt_id", attemptId)
+
+  if (userExistingAnswers?.length) {
+    const uqIds = (userExistingAnswers as { user_question_id: string; subject_name: string | null }[]).map(a => a.user_question_id)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: uqCorrect } = await (admin as any).from("user_questions").select("id, correct").in("id", uqIds)
+    const correctLabelMap = new Map<string, string>((uqCorrect ?? []).map((q: { id: string; correct: string }) => [q.id, q.correct]))
+
+    let userScore = 0
+    const userUpsertRows = (userExistingAnswers as { user_question_id: string; subject_name: string | null }[]).map(({ user_question_id, subject_name }) => {
+      const selectedOptionId = submittedMap.get(user_question_id) ?? null
+      const selectedLabel = labelFromUserOptionId(selectedOptionId)
+      const correctLabel = correctLabelMap.get(user_question_id)
+      const isCorrect = selectedLabel !== null && selectedLabel === correctLabel
+      if (isCorrect) userScore++
+      return { attempt_id: attemptId, user_question_id, subject_name, selected_option: selectedLabel, is_correct: isCorrect }
+    })
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (admin as any).from("attempt_user_answers")
+      .upsert(userUpsertRows, { onConflict: "attempt_id,user_question_id" })
+
+    score += userScore
+  }
 
   const { error: updateErr } = await admin
     .from("exam_attempts")

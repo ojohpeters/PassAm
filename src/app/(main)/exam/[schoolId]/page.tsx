@@ -75,6 +75,34 @@ export default async function ExamStartPage({
     if (parts.length > 0) adminNote = parts.join(" · ")
   }
 
+  // Pre-fetch user question counts by subject label (for the include-my-questions toggle)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: personalRows } = await (admin as any)
+    .from("user_questions")
+    .select("subject_label")
+    .eq("user_id", user.id)
+    .not("subject_label", "is", null)
+
+  const personalCountsBySubject: Record<string, number> = {}
+  for (const row of personalRows ?? []) {
+    const key = (row.subject_label as string).toLowerCase()
+    personalCountsBySubject[key] = (personalCountsBySubject[key] ?? 0) + 1
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: communityRows } = await (admin as any)
+    .from("user_questions")
+    .select("subject_label")
+    .eq("is_public", true)
+    .eq("moderation_status", "approved")
+    .not("subject_label", "is", null)
+
+  const communityCountsBySubject: Record<string, number> = {}
+  for (const row of communityRows ?? []) {
+    const key = (row.subject_label as string).toLowerCase()
+    communityCountsBySubject[key] = (communityCountsBySubject[key] ?? 0) + 1
+  }
+
   return (
     <SubjectPicker
       school={school}
@@ -83,6 +111,8 @@ export default async function ExamStartPage({
       subjectCounts={subjectCounts}
       availableYears={availableYears}
       adminNote={adminNote}
+      personalCountsBySubject={personalCountsBySubject}
+      communityCountsBySubject={communityCountsBySubject}
     />
   )
 }

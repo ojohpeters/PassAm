@@ -20,6 +20,8 @@ type Props = {
   subjectCounts: Record<string, number>
   availableYears: number[]
   adminNote: string | null
+  personalCountsBySubject: Record<string, number>
+  communityCountsBySubject: Record<string, number>
 }
 
 const PRESETS = [
@@ -47,6 +49,8 @@ export function SubjectPicker({
   subjectCounts,
   availableYears,
   adminNote,
+  personalCountsBySubject,
+  communityCountsBySubject,
 }: Props) {
   const router = useRouter()
   const [mode, setMode] = useState<Mode>(null)
@@ -63,6 +67,8 @@ export function SubjectPicker({
   const [qInput, setQInput] = useState("40")
   const [durationMins, setDurationMins] = useState(45)
   const [year, setYear] = useState<number | null>(null)
+  const [includePersonal, setIncludePersonal] = useState(false)
+  const [includeCommunity, setIncludeCommunity] = useState(false)
 
   function toggleMock(id: string) {
     setSelected((prev) => {
@@ -90,7 +96,9 @@ export function SubjectPicker({
       totalQuestions,
       undefined,
       durationMins,
-      year ?? undefined
+      year ?? undefined,
+      includePersonal,
+      includeCommunity,
     )
     if (!result.success) {
       const msg =
@@ -400,6 +408,18 @@ export function SubjectPicker({
   const canBegin = selectedCount >= 1
   const availablePresets = PRESETS.filter(p => p.match.every(name => subjects.some(s => s.name === name)))
 
+  // Count personal/community questions matching selected subjects
+  const matchingPersonal = Array.from(selected).reduce((sum, id) => {
+    const name = subjects.find(s => s.id === id)?.name?.toLowerCase() ?? ""
+    return sum + (personalCountsBySubject[name] ?? 0)
+  }, 0)
+  const matchingCommunity = Array.from(selected).reduce((sum, id) => {
+    const name = subjects.find(s => s.id === id)?.name?.toLowerCase() ?? ""
+    return sum + (communityCountsBySubject[name] ?? 0)
+  }, 0)
+  const hasPersonal = matchingPersonal > 0 || Object.values(personalCountsBySubject).some(v => v > 0)
+  const hasCommunity = matchingCommunity > 0 || Object.values(communityCountsBySubject).some(v => v > 0)
+
   return (
     <div className="min-h-full bg-background pb-12">
       <BackHeader subtitle={`Mock Exam · ${effectiveQ} questions · ${durationMins} min`} />
@@ -515,6 +535,41 @@ export function SubjectPicker({
                 </button>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Include personal/community questions */}
+        {(hasPersonal || hasCommunity) && (
+          <div className="rounded-2xl border bg-background p-4 space-y-2.5">
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Also Include</p>
+            {hasPersonal && (
+              <label className="flex items-center justify-between gap-3 cursor-pointer select-none">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold">My personal questions</p>
+                  <p className="text-xs text-muted-foreground">
+                    {selectedCount > 0 ? `${matchingPersonal} matching your selected subjects` : `${Object.values(personalCountsBySubject).reduce((a, b) => a + b, 0)} in your bank`}
+                  </p>
+                </div>
+                <div onClick={() => setIncludePersonal(v => !v)}
+                  className={cn("relative h-5 w-9 rounded-full shrink-0 transition-colors cursor-pointer", includePersonal ? "bg-primary" : "bg-muted-foreground/30")}>
+                  <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform", includePersonal ? "translate-x-4" : "translate-x-0.5")} />
+                </div>
+              </label>
+            )}
+            {hasCommunity && (
+              <label className="flex items-center justify-between gap-3 cursor-pointer select-none">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold">Community questions</p>
+                  <p className="text-xs text-muted-foreground">
+                    {selectedCount > 0 ? `${matchingCommunity} matching your selected subjects` : `${Object.values(communityCountsBySubject).reduce((a, b) => a + b, 0)} approved questions`}
+                  </p>
+                </div>
+                <div onClick={() => setIncludeCommunity(v => !v)}
+                  className={cn("relative h-5 w-9 rounded-full shrink-0 transition-colors cursor-pointer", includeCommunity ? "bg-primary" : "bg-muted-foreground/30")}>
+                  <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform", includeCommunity ? "translate-x-4" : "translate-x-0.5")} />
+                </div>
+              </label>
+            )}
           </div>
         )}
 
