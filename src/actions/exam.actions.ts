@@ -379,13 +379,25 @@ export async function submitExam(
 
   const { data: attempt } = await admin
     .from("exam_attempts")
-    .select("user_id, total_questions, completed_at")
+    .select("user_id, total_questions, completed_at, score")
     .eq("id", attemptId)
     .single()
 
   if (!attempt) return { success: false, error: "NOT_FOUND" }
   if (attempt.user_id !== user.id) return { success: false, error: "FORBIDDEN" }
-  if (attempt.completed_at !== null) return { success: false, error: "VALIDATION_ERROR" }
+
+  // Already submitted (e.g. network dropped after server processed it — client retrying)
+  if (attempt.completed_at !== null) {
+    return {
+      success: true,
+      data: {
+        attemptId,
+        score: attempt.score ?? 0,
+        totalQuestions: attempt.total_questions,
+        percentage: Math.round(((attempt.score ?? 0) / attempt.total_questions) * 100),
+      },
+    }
+  }
 
   const { data: existingAnswers } = await admin
     .from("attempt_answers")
@@ -420,11 +432,12 @@ export async function submitExam(
     }
   })
 
-  const { error: upsertErr } = await admin
-    .from("attempt_answers")
-    .upsert(upsertRows, { onConflict: "attempt_id,question_id" })
-
-  if (upsertErr) return { success: false, error: "INTERNAL" }
+  if (upsertRows.length > 0) {
+    const { error: upsertErr } = await admin
+      .from("attempt_answers")
+      .upsert(upsertRows, { onConflict: "attempt_id,question_id" })
+    if (upsertErr) return { success: false, error: "INTERNAL" }
+  }
 
   // ── Grade personal/community question answers ────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
