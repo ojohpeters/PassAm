@@ -13,6 +13,8 @@ export default withPWA({
   dest: "public",
   register: true,
   skipWaiting: true,
+  // Serve /offline when a page can't be fetched (fully offline + not cached)
+  fallbacks: { document: "/offline" },
   // Don't cache these — they must always be live
   buildExcludes: [/middleware-manifest\.json$/],
   runtimeCaching: [

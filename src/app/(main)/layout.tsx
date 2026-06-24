@@ -3,6 +3,7 @@ import { TopNav } from "@/components/shared/TopNav"
 import { BottomNav } from "@/components/shared/BottomNav"
 import { WhatsAppButton } from "@/components/shared/WhatsAppButton"
 import { SchoolPrompt } from "@/components/shared/SchoolPrompt"
+import { OfflineNotifier } from "@/components/shared/OfflineNotifier"
 import { getAppUser } from "@/lib/auth"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { redirect } from "next/navigation"
@@ -36,6 +37,7 @@ export default async function MainLayout({ children }: { children: React.ReactNo
       <BottomNav />
       <WhatsAppButton />
       {!hasSchool && <SchoolPrompt />}
+      <OfflineNotifier />
     </div>
   )
 }

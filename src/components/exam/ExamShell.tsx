@@ -24,6 +24,23 @@ type Props = {
 const MAX_VIOLATIONS = 3
 const ANTICHEAT_COUNTDOWN = 5
 
+// ── Offline submit queue helpers ─────────────────────────────────────────
+type PendingSubmit = {
+  attemptId: string
+  answers: { questionId: string; selectedOptionId: string | null }[]
+  timeTakenSecs: number
+}
+const PENDING_KEY = "prepiq_pending_submit"
+function getPending(): PendingSubmit | null {
+  try { return JSON.parse(localStorage.getItem(PENDING_KEY) ?? "null") } catch { return null }
+}
+function setPending(d: PendingSubmit) {
+  try { localStorage.setItem(PENDING_KEY, JSON.stringify(d)) } catch {}
+}
+function clearPending() {
+  try { localStorage.removeItem(PENDING_KEY) } catch {}
+}
+
 export function ExamShell({ attemptId, questions, timeLimitSecs }: Props) {
   const router = useRouter()
   const {
@@ -113,6 +130,30 @@ export function ExamShell({ attemptId, questions, timeLimitSecs }: Props) {
     }
   }
 
+  // On reconnect — retry any pending submit for this attempt
+  useEffect(() => {
+    async function retryPending() {
+      const p = getPending()
+      if (!p || p.attemptId !== attemptId || isSubmittingRef.current) return
+      clearPending()
+      toast.dismiss("offline-pending")
+      setSubmitting(true)
+      toast.info("Back online — submitting your exam…", { duration: 5000 })
+      try {
+        const result = await submitExam(p)
+        if (result.success) { reset(); router.push(`/results/${attemptId}`) }
+        else { setSubmitting(false); toast.error("Failed to submit — please try again.") }
+      } catch {
+        setPending(p) // restore so next reconnect retries
+        setSubmitting(false)
+        toast.warning("Still offline — will retry when connected.", { id: "offline-pending", duration: Infinity })
+      }
+    }
+    window.addEventListener("online", retryPending)
+    if (navigator.onLine) retryPending() // handle re-mount after offline submit was saved
+    return () => window.removeEventListener("online", retryPending)
+  }, [attemptId]) // eslint-disable-line
+
   // ── Submit ──────────────────────────────────────────────────────────────
   const doSubmit = useCallback(async (timedOut = false) => {
     if (isSubmittingRef.current) return
@@ -120,20 +161,31 @@ export function ExamShell({ attemptId, questions, timeLimitSecs }: Props) {
     setShowConfirm(false)
     setTabWarning(false)
     document.title = originalTitle.current
+    const payload = {
+      attemptId,
+      answers: Object.entries(answers).map(([questionId, selectedOptionId]) => ({ questionId, selectedOptionId })),
+      timeTakenSecs: timedOut ? timeLimitSecs : timeLimitSecs - timeLeft,
+    }
     try {
-      const result = await submitExam({
-        attemptId,
-        answers: Object.entries(answers).map(([questionId, selectedOptionId]) => ({ questionId, selectedOptionId })),
-        timeTakenSecs: timedOut ? timeLimitSecs : timeLimitSecs - timeLeft,
-      })
+      const result = await submitExam(payload)
       if (!result.success) {
         toast.error("Failed to submit — please try again.")
         setSubmitting(false)
         return
       }
+      clearPending()
       reset()
       router.push(`/results/${attemptId}`)
     } catch {
+      if (!navigator.onLine) {
+        setPending(payload)
+        toast.warning("No connection — answers saved. Will auto-submit when you're back online.", {
+          id: "offline-pending",
+          duration: Infinity,
+        })
+        setSubmitting(false)
+        return
+      }
       toast.error("Connection error — please try again.")
       setSubmitting(false)
     }
