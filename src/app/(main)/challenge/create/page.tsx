@@ -10,7 +10,8 @@ export default async function CreateChallengePage() {
   const admin = createAdminClient()
 
   // Get subjects + schools that have bank questions
-  const { data: rows } = await admin
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rows } = await (admin as any)
     .from("questions")
     .select("subject_id, school_id, subject:subjects(id, name), school:schools(id, name, abbreviation)")
     .eq("is_bank_question", true)
