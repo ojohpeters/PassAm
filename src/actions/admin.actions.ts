@@ -193,7 +193,7 @@ export async function updateQuestion(
     year?: number
     schoolId: string
     subjectId: string
-    options: { label: string; text: string; isCorrect: boolean }[]
+    options: { label: "A" | "B" | "C" | "D"; text: string; isCorrect: boolean }[]
   }
 ): Promise<ActionResult<void>> {
   try { await requireAdmin() } catch { return { success: false, error: "UNAUTHORIZED" } }
