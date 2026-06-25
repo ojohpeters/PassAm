@@ -34,6 +34,19 @@ export default async function CreateChallengePage() {
     }
   }
 
+  // Build subject×school count matrix for dynamic count display
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const subjectSchoolCounts: Record<string, Record<string, number>> = {}
+  for (const row of rows ?? []) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const subjectId = (row.subject as any)?.id as string | undefined
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const schoolId  = (row.school  as any)?.id as string | undefined
+    if (!subjectId || !schoolId) continue
+    if (!subjectSchoolCounts[subjectId]) subjectSchoolCounts[subjectId] = {}
+    subjectSchoolCounts[subjectId][schoolId] = (subjectSchoolCounts[subjectId][schoolId] ?? 0) + 1
+  }
+
   const subjects = Array.from(subjectMap.values())
     .filter((s) => s.count >= 10)
     .sort((a, b) => a.name.localeCompare(b.name))
@@ -42,5 +55,5 @@ export default async function CreateChallengePage() {
     .filter((s) => s.count >= 10)
     .sort((a, b) => a.name.localeCompare(b.name))
 
-  return <NewChallengeClient subjects={subjects} schools={schools} />
+  return <NewChallengeClient subjects={subjects} schools={schools} subjectSchoolCounts={subjectSchoolCounts} />
 }

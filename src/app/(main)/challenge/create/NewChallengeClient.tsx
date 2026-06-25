@@ -1,15 +1,14 @@
 "use client"
 
-import { useState, type ComponentType } from "react"
+import { useState, useMemo, useEffect, type ComponentType } from "react"
 import { useRouter } from "next/navigation"
 import { createChallenge } from "@/actions/challenge.actions"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
-import { Swords, Clock, BookOpen, Loader2, Copy, Check, School as SchoolIcon, Shuffle, Globe } from "lucide-react"
+import { Swords, Clock, BookOpen, Loader2, Copy, Check, School as SchoolIcon, Shuffle, Globe, ChevronLeft, ChevronRight } from "lucide-react"
 
 type Subject    = { id: string; name: string; count: number }
 type SchoolItem = { id: string; name: string; abbreviation: string; count: number }
-
 type SchoolSource = "all" | "specific" | "random"
 
 const TIME_OPTIONS = [
@@ -20,26 +19,70 @@ const TIME_OPTIONS = [
   { label: "30 min", secs: 1800 },
 ]
 const Q_OPTIONS = [10, 20, 30, 40]
+const SCHOOLS_PER_PAGE = 6
 
-const SOURCE_OPTIONS: { value: SchoolSource; label: string; desc: string; icon: ComponentType<{ className?: string }> }[] = [
-  { value: "all",      label: "All schools",   desc: "Mix from every school",          icon: Globe      },
-  { value: "specific", label: "Pick a school", desc: "Questions from one school only", icon: SchoolIcon },
-  { value: "random",   label: "Random school", desc: "We pick a school at random",     icon: Shuffle    },
+const SOURCE_OPTIONS: { value: SchoolSource; label: string; icon: ComponentType<{ className?: string }> }[] = [
+  { value: "all",      label: "All schools",   icon: Globe      },
+  { value: "specific", label: "Pick a school", icon: SchoolIcon },
+  { value: "random",   label: "Random school", icon: Shuffle    },
 ]
 
-export function NewChallengeClient({ subjects, schools }: { subjects: Subject[]; schools: SchoolItem[] }) {
-  const router = useRouter()
-  const [loading, setLoading] = useState(false)
-  const [selectedSubject, setSelectedSubject] = useState<string>(subjects[0]?.id ?? "")
-  const [numQuestions, setNumQuestions] = useState(20)
-  const [timeLimitSecs, setTimeLimitSecs] = useState(1200)
-  const [schoolSource, setSchoolSource] = useState<SchoolSource>("all")
-  const [selectedSchool, setSelectedSchool] = useState<string>(schools[0]?.id ?? "")
-  const [created, setCreated] = useState<{ code: string; participantId: string } | null>(null)
-  const [copied, setCopied] = useState(false)
+type Props = {
+  subjects: Subject[]
+  schools: SchoolItem[]
+  subjectSchoolCounts: Record<string, Record<string, number>>
+}
 
-  const appUrl = typeof window !== "undefined" ? window.location.origin : ""
+export function NewChallengeClient({ subjects, schools, subjectSchoolCounts }: Props) {
+  const router = useRouter()
+  const [loading, setLoading]             = useState(false)
+  const [selectedSubject, setSelectedSubject] = useState<string>(subjects[0]?.id ?? "")
+  const [numQuestions, setNumQuestions]   = useState(20)
+  const [timeLimitSecs, setTimeLimitSecs] = useState(1200)
+  const [schoolSource, setSchoolSource]   = useState<SchoolSource>("all")
+  const [selectedSchool, setSelectedSchool] = useState<string>("")
+  const [schoolPage, setSchoolPage]       = useState(0)
+  const [created, setCreated]             = useState<{ code: string; participantId: string } | null>(null)
+  const [copied, setCopied]               = useState(false)
+
+  const appUrl   = typeof window !== "undefined" ? window.location.origin : ""
   const shareUrl = created ? `${appUrl}/challenge/${created.code}` : ""
+
+  // Schools that have questions for the selected subject
+  const filteredSchools = useMemo(() => {
+    const countsForSubject = subjectSchoolCounts[selectedSubject] ?? {}
+    return schools.filter((sc) => (countsForSubject[sc.id] ?? 0) >= 1)
+  }, [selectedSubject, schools, subjectSchoolCounts])
+
+  const totalSchoolPages = Math.max(1, Math.ceil(filteredSchools.length / SCHOOLS_PER_PAGE))
+  const pagedSchools     = filteredSchools.slice(schoolPage * SCHOOLS_PER_PAGE, (schoolPage + 1) * SCHOOLS_PER_PAGE)
+
+  // Reset pagination + clear school when subject or source changes
+  useEffect(() => {
+    setSchoolPage(0)
+    // If current school has no questions for new subject, clear it
+    if (selectedSchool && !(subjectSchoolCounts[selectedSubject]?.[selectedSchool] >= 1)) {
+      setSelectedSchool("")
+    }
+  }, [selectedSubject, schoolSource]) // eslint-disable-line
+
+  // Question count shown on subject tiles — changes with school selection
+  function getSubjectCount(subjectId: string): number {
+    if (schoolSource === "specific" && selectedSchool) {
+      return subjectSchoolCounts[subjectId]?.[selectedSchool] ?? 0
+    }
+    return subjects.find((s) => s.id === subjectId)?.count ?? 0
+  }
+
+  const maxAvailable = getSubjectCount(selectedSubject)
+
+  // Auto-adjust numQuestions if it exceeds what's available
+  useEffect(() => {
+    if (maxAvailable > 0 && numQuestions > maxAvailable) {
+      const fallback = Q_OPTIONS.filter((n) => n <= maxAvailable).at(-1)
+      if (fallback) setNumQuestions(fallback)
+    }
+  }, [maxAvailable]) // eslint-disable-line
 
   async function handleCreate() {
     if (!selectedSubject) { toast.error("Select a subject"); return }
@@ -72,19 +115,15 @@ export function NewChallengeClient({ subjects, schools }: { subjects: Subject[];
   }
 
   function handleShare() {
-    const subjectName = subjects.find(s => s.id === selectedSubject)?.name ?? "POST-UTME"
+    const subjectName = subjects.find((s) => s.id === selectedSubject)?.name ?? "POST-UTME"
     if (navigator.share) {
-      navigator.share({
-        title: "PrepIQ 1v1 Challenge",
-        text: `I'm challenging you on ${subjectName}! Can you beat my score?`,
-        url: shareUrl,
-      })
+      navigator.share({ title: "PrepIQ 1v1 Challenge", text: `I'm challenging you on ${subjectName}! Can you beat my score?`, url: shareUrl })
     } else {
       handleCopy()
     }
   }
 
-  // ── Created state ──────────────────────────────────────────────────────
+  // ── Created state ──────────────────────────────────────────────────────────
   if (created) {
     return (
       <div className="mx-auto max-w-lg space-y-5 px-4 py-8">
@@ -132,7 +171,7 @@ export function NewChallengeClient({ subjects, schools }: { subjects: Subject[];
     )
   }
 
-  // ── Create form ────────────────────────────────────────────────────────
+  // ── Create form ────────────────────────────────────────────────────────────
   return (
     <div className="min-h-full bg-background pb-12">
       {/* Hero */}
@@ -158,23 +197,26 @@ export function NewChallengeClient({ subjects, schools }: { subjects: Subject[];
             <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Subject</p>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            {subjects.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => setSelectedSubject(s.id)}
-                className={cn(
-                  "rounded-xl border-2 px-3 py-2.5 text-left transition-all",
-                  selectedSubject === s.id
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-primary/30 hover:bg-muted/30"
-                )}
-              >
-                <p className={cn("text-sm font-bold truncate", selectedSubject === s.id ? "text-primary" : "text-foreground")}>
-                  {s.name}
-                </p>
-                <p className="text-xs text-muted-foreground">{s.count} questions</p>
-              </button>
-            ))}
+            {subjects.map((s) => {
+              const count = getSubjectCount(s.id)
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => setSelectedSubject(s.id)}
+                  className={cn(
+                    "rounded-xl border-2 px-3 py-2.5 text-left transition-all",
+                    selectedSubject === s.id
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-primary/30 hover:bg-muted/30"
+                  )}
+                >
+                  <p className={cn("text-sm font-bold truncate", selectedSubject === s.id ? "text-primary" : "text-foreground")}>
+                    {s.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{count} question{count !== 1 ? "s" : ""}</p>
+                </button>
+              )
+            })}
           </div>
         </div>
 
@@ -204,29 +246,77 @@ export function NewChallengeClient({ subjects, schools }: { subjects: Subject[];
             ))}
           </div>
 
-          {/* School picker (shown only when 'specific') */}
+          {/* School picker with pagination */}
           {schoolSource === "specific" && (
             <div className="space-y-2 pt-1">
-              <p className="text-xs text-muted-foreground">Choose a school:</p>
-              <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
-                {schools.map((sc) => (
-                  <button
-                    key={sc.id}
-                    onClick={() => setSelectedSchool(sc.id)}
-                    className={cn(
-                      "rounded-xl border-2 px-3 py-2.5 text-left transition-all",
-                      selectedSchool === sc.id
-                        ? "border-primary bg-primary/5"
-                        : "border-border hover:border-primary/30 hover:bg-muted/30"
-                    )}
-                  >
-                    <p className={cn("text-sm font-black", selectedSchool === sc.id ? "text-primary" : "text-foreground")}>
-                      {sc.abbreviation}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate">{sc.name}</p>
-                  </button>
-                ))}
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">
+                  Choose a school: <span className="font-semibold text-foreground">{filteredSchools.length} available</span>
+                </p>
+                {totalSchoolPages > 1 && (
+                  <p className="text-xs text-muted-foreground">
+                    {schoolPage + 1} / {totalSchoolPages}
+                  </p>
+                )}
               </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                {pagedSchools.map((sc) => {
+                  const count = subjectSchoolCounts[selectedSubject]?.[sc.id] ?? 0
+                  return (
+                    <button
+                      key={sc.id}
+                      onClick={() => setSelectedSchool(sc.id)}
+                      className={cn(
+                        "rounded-xl border-2 px-3 py-2.5 text-left transition-all",
+                        selectedSchool === sc.id
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:border-primary/30 hover:bg-muted/30"
+                      )}
+                    >
+                      <p className={cn("text-sm font-black truncate", selectedSchool === sc.id ? "text-primary" : "text-foreground")}>
+                        {sc.abbreviation}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">{sc.name}</p>
+                      <p className="text-xs text-muted-foreground">{count} q</p>
+                    </button>
+                  )
+                })}
+              </div>
+
+              {/* Pagination controls */}
+              {totalSchoolPages > 1 && (
+                <div className="flex items-center justify-between pt-1">
+                  <button
+                    onClick={() => setSchoolPage((p) => Math.max(0, p - 1))}
+                    disabled={schoolPage === 0}
+                    className="flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-semibold disabled:opacity-40 hover:bg-muted"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                    Prev
+                  </button>
+                  <div className="flex gap-1">
+                    {Array.from({ length: totalSchoolPages }).map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setSchoolPage(i)}
+                        className={cn(
+                          "h-2 w-2 rounded-full transition-colors",
+                          i === schoolPage ? "bg-primary" : "bg-muted-foreground/30"
+                        )}
+                      />
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => setSchoolPage((p) => Math.min(totalSchoolPages - 1, p + 1))}
+                    disabled={schoolPage === totalSchoolPages - 1}
+                    className="flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-semibold disabled:opacity-40 hover:bg-muted"
+                  >
+                    Next
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -238,22 +328,34 @@ export function NewChallengeClient({ subjects, schools }: { subjects: Subject[];
           )}
         </div>
 
-        {/* Questions */}
+        {/* Number of questions */}
         <div className="rounded-2xl border bg-background p-4 space-y-3">
-          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Number of Questions</p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Number of Questions</p>
+            {schoolSource === "specific" && selectedSchool && maxAvailable > 0 && (
+              <p className="text-xs text-muted-foreground">{maxAvailable} available</p>
+            )}
+          </div>
           <div className="grid grid-cols-4 gap-2">
-            {Q_OPTIONS.map((n) => (
-              <button
-                key={n}
-                onClick={() => setNumQuestions(n)}
-                className={cn(
-                  "rounded-xl border-2 py-2.5 text-sm font-black transition-all",
-                  numQuestions === n ? "border-primary bg-primary text-primary-foreground" : "border-border hover:border-primary/30"
-                )}
-              >
-                {n}
-              </button>
-            ))}
+            {Q_OPTIONS.map((n) => {
+              const unavailable = schoolSource === "specific" && selectedSchool && n > maxAvailable
+              return (
+                <button
+                  key={n}
+                  onClick={() => !unavailable && setNumQuestions(n)}
+                  className={cn(
+                    "rounded-xl border-2 py-2.5 text-sm font-black transition-all",
+                    unavailable
+                      ? "border-border opacity-30 cursor-not-allowed"
+                      : numQuestions === n
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border hover:border-primary/30"
+                  )}
+                >
+                  {n}
+                </button>
+              )
+            })}
           </div>
         </div>
 
@@ -281,10 +383,10 @@ export function NewChallengeClient({ subjects, schools }: { subjects: Subject[];
 
         <button
           onClick={handleCreate}
-          disabled={loading || !selectedSubject}
+          disabled={loading || !selectedSubject || (schoolSource === "specific" && !selectedSchool)}
           className={cn(
             "flex w-full items-center justify-center gap-2.5 rounded-2xl py-4 text-base font-black transition-all",
-            !loading && selectedSubject
+            !loading && selectedSubject && !(schoolSource === "specific" && !selectedSchool)
               ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30 hover:opacity-90 active:scale-[0.98]"
               : "bg-muted text-muted-foreground cursor-not-allowed"
           )}
