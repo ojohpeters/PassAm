@@ -14,6 +14,7 @@ const MAIN_TABS = [
 ]
 
 const MORE_ITEMS = [
+  { href: "/challenge/create",    label: "1v1 Challenge",  icon: Swords    },
   { href: "/readiness",    label: "Readiness",    icon: GaugeCircle         },
   { href: "/sets",         label: "Practice Sets", icon: Layers              },
   { href: "/drill",        label: "Timed Drill",  icon: Zap                 },
@@ -23,7 +24,6 @@ const MORE_ITEMS = [
   { href: "/error-log",    label: "Error Log",    icon: BookX               },
   { href: "/weak-spots",   label: "Weak Spots",   icon: Target              },
   { href: "/tips",         label: "Study Tips",   icon: Lightbulb           },
-  { href: "/challenge/create",    label: "1v1 Challenge",  icon: Swords    },
   { href: "/community/questions", label: "Community Q's", icon: BookMarked },
   { href: "/community",          label: "Community",    icon: Users      },
   { href: "/analytics",    label: "Analytics",    icon: BarChart2           },

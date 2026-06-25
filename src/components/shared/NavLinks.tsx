@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 
 const NAV = [
   { href: "/dashboard",   label: "Dashboard",   icon: LayoutDashboard },
+  { href: "/challenge/create",    label: "1v1 Challenge",  icon: Swords },
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
   { href: "/readiness",   label: "Readiness",   icon: GaugeCircle },
   { href: "/sets",         label: "Practice Sets", icon: Layers   },
@@ -19,7 +20,6 @@ const NAV = [
   { href: "/analytics",   label: "Analytics",   icon: BarChart2 },
   { href: "/daily-quiz",  label: "Daily Quiz",  icon: Calendar },
   { href: "/tips",        label: "Study Tips",  icon: Lightbulb },
-  { href: "/challenge/create",    label: "1v1 Challenge",  icon: Swords },
   { href: "/community/questions", label: "Community Q's", icon: Globe  },
   { href: "/community",          label: "Community",     icon: Users  },
   { href: "/profile",     label: "Profile",     icon: UserCircle },
