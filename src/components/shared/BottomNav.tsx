@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Trophy, Calendar, UserCircle, MoreHorizontal, BarChart2, MessageCircleHeart, Globe, X, Lightbulb, Users, Zap, BookOpen, BookX, Target, Layers, GaugeCircle, LibraryBig, Bot, BookMarked, Swords } from "lucide-react"
+import { LayoutDashboard, Trophy, Calendar, UserCircle, MoreHorizontal, BarChart2, MessageCircleHeart, Globe, X, Lightbulb, Users, Zap, BookOpen, BookX, Target, Layers, GaugeCircle, LibraryBig, Bot, BookMarked, Swords, ChevronDown, ChevronUp } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useState } from "react"
 
@@ -13,37 +13,48 @@ const MAIN_TABS = [
   { href: "/profile",     label: "Profile", icon: UserCircle      },
 ]
 
-const MORE_ITEMS = [
-  { href: "/challenge/create",    label: "1v1 Challenge",  icon: Swords    },
-  { href: "/readiness",    label: "Readiness",    icon: GaugeCircle         },
-  { href: "/sets",         label: "Practice Sets", icon: Layers              },
-  { href: "/drill",        label: "Timed Drill",  icon: Zap                 },
-  { href: "/study-room",   label: "Study Room",   icon: BookOpen            },
-  { href: "/my-questions", label: "My Bank",      icon: LibraryBig          },
-  { href: "/prepai",       label: "PrepAI",       icon: Bot                 },
-  { href: "/error-log",    label: "Error Log",    icon: BookX               },
-  { href: "/weak-spots",   label: "Weak Spots",   icon: Target              },
-  { href: "/tips",         label: "Study Tips",   icon: Lightbulb           },
-  { href: "/community/questions", label: "Community Q's", icon: BookMarked },
-  { href: "/community",          label: "Community",    icon: Users      },
-  { href: "/analytics",    label: "Analytics",    icon: BarChart2           },
-  { href: "/exam/general", label: "General Exam", icon: Globe               },
-  { href: "/contact",      label: "About & Help", icon: MessageCircleHeart  },
+const PRIMARY_MORE = [
+  { href: "/challenge/create",    label: "1v1 Challenge",  icon: Swords      },
+  { href: "/readiness",           label: "Readiness",      icon: GaugeCircle },
+  { href: "/sets",                label: "Practice Sets",  icon: Layers      },
+  { href: "/drill",               label: "Timed Drill",    icon: Zap         },
+  { href: "/study-room",          label: "Study Room",     icon: BookOpen    },
+  { href: "/my-questions",        label: "My Bank",        icon: LibraryBig  },
+  { href: "/prepai",              label: "PrepAI",         icon: Bot         },
 ]
+
+const EXTRA_MORE = [
+  { href: "/error-log",           label: "Error Log",      icon: BookX               },
+  { href: "/weak-spots",          label: "Weak Spots",     icon: Target              },
+  { href: "/tips",                label: "Study Tips",     icon: Lightbulb           },
+  { href: "/community/questions", label: "Community Q's",  icon: BookMarked          },
+  { href: "/community",           label: "Community",      icon: Users               },
+  { href: "/analytics",           label: "Analytics",      icon: BarChart2           },
+  { href: "/exam/general",        label: "General Exam",   icon: Globe               },
+  { href: "/contact",             label: "About & Help",   icon: MessageCircleHeart  },
+]
+
+const ALL_MORE = [...PRIMARY_MORE, ...EXTRA_MORE]
 
 export function BottomNav() {
   const pathname = usePathname()
-  const [moreOpen, setMoreOpen] = useState(false)
+  const [moreOpen, setMoreOpen]   = useState(false)
+  const [extraOpen, setExtraOpen] = useState(false)
 
-  const moreActive = MORE_ITEMS.some((i) => pathname.startsWith(i.href))
+  const moreActive = ALL_MORE.some((i) => pathname.startsWith(i.href))
+
+  function closeAll() {
+    setMoreOpen(false)
+    setExtraOpen(false)
+  }
 
   return (
     <>
-      {/* More panel overlay */}
+      {/* Overlay */}
       {moreOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm md:hidden"
-          onClick={() => setMoreOpen(false)}
+          onClick={closeAll}
         />
       )}
 
@@ -55,19 +66,21 @@ export function BottomNav() {
         <div className="mx-4 mb-2 overflow-hidden rounded-2xl border bg-background/95 shadow-2xl backdrop-blur-xl">
           <div className="flex items-center justify-between border-b px-4 py-3">
             <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">More</p>
-            <button onClick={() => setMoreOpen(false)} className="rounded-lg p-1 text-muted-foreground hover:bg-muted">
+            <button onClick={closeAll} className="rounded-lg p-1 text-muted-foreground hover:bg-muted">
               <X className="h-4 w-4" />
             </button>
           </div>
-          {MORE_ITEMS.map(({ href, label, icon: Icon }) => {
+
+          {/* Primary items */}
+          {PRIMARY_MORE.map(({ href, label, icon: Icon }) => {
             const active = pathname === href || pathname.startsWith(href)
             return (
               <Link
                 key={href}
                 href={href}
-                onClick={() => setMoreOpen(false)}
+                onClick={closeAll}
                 className={cn(
-                  "flex items-center gap-3 px-4 py-3.5 text-sm font-semibold transition-colors border-b last:border-0",
+                  "flex items-center gap-3 px-4 py-3.5 text-sm font-semibold transition-colors border-b",
                   active ? "text-primary bg-primary/5" : "text-foreground hover:bg-muted"
                 )}
               >
@@ -76,6 +89,37 @@ export function BottomNav() {
               </Link>
             )
           })}
+
+          {/* Extra items (collapsible) */}
+          {extraOpen && EXTRA_MORE.map(({ href, label, icon: Icon }) => {
+            const active = pathname === href || pathname.startsWith(href)
+            return (
+              <Link
+                key={href}
+                href={href}
+                onClick={closeAll}
+                className={cn(
+                  "flex items-center gap-3 px-4 py-3.5 text-sm font-semibold transition-colors border-b",
+                  active ? "text-primary bg-primary/5" : "text-foreground hover:bg-muted"
+                )}
+              >
+                <Icon className={cn("h-5 w-5", active ? "text-primary" : "text-muted-foreground")} />
+                {label}
+              </Link>
+            )
+          })}
+
+          {/* More / Less toggle */}
+          <button
+            onClick={() => setExtraOpen((v) => !v)}
+            className="flex w-full items-center gap-3 px-4 py-3.5 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted"
+          >
+            <MoreHorizontal className="h-5 w-5" />
+            {extraOpen ? "Show less" : "More"}
+            {extraOpen
+              ? <ChevronUp className="ml-auto h-4 w-4" />
+              : <ChevronDown className="ml-auto h-4 w-4" />}
+          </button>
         </div>
       </div>
 
