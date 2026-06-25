@@ -240,10 +240,10 @@ export function ChallengeAccept({ code, challenge, currentUserId }: Props) {
           </div>
         )}
 
-        {/* Results link once both done */}
-        {challenge.status === "completed" && (
+        {/* Results link once both done — only shown to participants */}
+        {challenge.status === "completed" && myParticipantId && (
           <Link
-            href={`/challenge/${code}/results`}
+            href={`/challenge/${code}/results?p=${myParticipantId}`}
             className="flex w-full items-center justify-center gap-2 rounded-2xl border border-primary/30 bg-primary/5 py-3 text-sm font-bold text-primary transition-all hover:bg-primary/10"
           >
             See final results →
