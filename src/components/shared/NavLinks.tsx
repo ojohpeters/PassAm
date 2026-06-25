@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Trophy, BarChart2, Calendar, UserCircle, MessageCircleHeart, Lightbulb, Users, Zap, BookOpen, BookX, Target, Layers, GaugeCircle, LibraryBig, Bot, Globe } from "lucide-react"
+import { LayoutDashboard, Trophy, BarChart2, Calendar, UserCircle, MessageCircleHeart, Lightbulb, Users, Zap, BookOpen, BookX, Target, Layers, GaugeCircle, LibraryBig, Bot, Globe, Swords } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const NAV = [
@@ -19,6 +19,7 @@ const NAV = [
   { href: "/analytics",   label: "Analytics",   icon: BarChart2 },
   { href: "/daily-quiz",  label: "Daily Quiz",  icon: Calendar },
   { href: "/tips",        label: "Study Tips",  icon: Lightbulb },
+  { href: "/challenge/create",    label: "1v1 Challenge",  icon: Swords },
   { href: "/community/questions", label: "Community Q's", icon: Globe  },
   { href: "/community",          label: "Community",     icon: Users  },
   { href: "/profile",     label: "Profile",     icon: UserCircle },
