@@ -177,7 +177,8 @@ export async function getQuestions(
 export async function getQuestion(id: string) {
   try { await requireAdmin() } catch { return null }
   const admin = createAdminClient()
-  const { data } = await admin
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (admin as any)
     .from("questions")
     .select("id, text, explanation, year, school_id, subject_id, options(id, label, text, is_correct)")
     .eq("id", id)

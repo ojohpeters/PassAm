@@ -39,7 +39,7 @@ export function EditQuestionModal({ questionId, schools, subjects, onClose, onSa
       setSubjectId(q.subject_id ?? "")
       const optMap: Record<string, string> = {}
       let correctLabel: "A"|"B"|"C"|"D" = "A"
-      for (const o of (q.options ?? []) as { label: string; text: string; is_correct: boolean }[]) {
+      for (const o of (q.options ?? []) as unknown as { label: string; text: string; is_correct: boolean }[]) {
         optMap[o.label] = o.text
         if (o.is_correct) correctLabel = o.label as "A"|"B"|"C"|"D"
       }
