@@ -1,14 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { useState, type ComponentType } from "react"
 import { useRouter } from "next/navigation"
 import { createChallenge } from "@/actions/challenge.actions"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
-import { Swords, Clock, BookOpen, Loader2, Copy, Check, School, Shuffle, Globe } from "lucide-react"
+import { Swords, Clock, BookOpen, Loader2, Copy, Check, School as SchoolIcon, Shuffle, Globe } from "lucide-react"
 
-type Subject = { id: string; name: string; count: number }
-type School  = { id: string; name: string; abbreviation: string; count: number }
+type Subject    = { id: string; name: string; count: number }
+type SchoolItem = { id: string; name: string; abbreviation: string; count: number }
 
 type SchoolSource = "all" | "specific" | "random"
 
@@ -21,13 +21,13 @@ const TIME_OPTIONS = [
 ]
 const Q_OPTIONS = [10, 20, 30, 40]
 
-const SOURCE_OPTIONS: { value: SchoolSource; label: string; desc: string; icon: React.ElementType }[] = [
-  { value: "all",      label: "All schools",   desc: "Mix from every school",            icon: Globe    },
-  { value: "specific", label: "Pick a school", desc: "Questions from one school only",   icon: School   },
-  { value: "random",   label: "Random school", desc: "We pick a school at random",       icon: Shuffle  },
+const SOURCE_OPTIONS: { value: SchoolSource; label: string; desc: string; icon: ComponentType<{ className?: string }> }[] = [
+  { value: "all",      label: "All schools",   desc: "Mix from every school",          icon: Globe      },
+  { value: "specific", label: "Pick a school", desc: "Questions from one school only", icon: SchoolIcon },
+  { value: "random",   label: "Random school", desc: "We pick a school at random",     icon: Shuffle    },
 ]
 
-export function NewChallengeClient({ subjects, schools }: { subjects: Subject[]; schools: School[] }) {
+export function NewChallengeClient({ subjects, schools }: { subjects: Subject[]; schools: SchoolItem[] }) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [selectedSubject, setSelectedSubject] = useState<string>(subjects[0]?.id ?? "")
@@ -181,7 +181,7 @@ export function NewChallengeClient({ subjects, schools }: { subjects: Subject[];
         {/* School source */}
         <div className="rounded-2xl border bg-background p-4 space-y-3">
           <div className="flex items-center gap-2">
-            <School className="h-4 w-4 text-muted-foreground" />
+            <SchoolIcon className="h-4 w-4 text-muted-foreground" />
             <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Question source</p>
           </div>
           <div className="grid grid-cols-3 gap-2">
