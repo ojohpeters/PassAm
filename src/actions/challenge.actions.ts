@@ -26,6 +26,8 @@ export type ChallengeData = {
   code: string
   creator_id: string
   subject_name: string
+  school_name: string | null
+  school_source: "specific" | "random" | "all"
   num_questions: number
   time_limit_secs: number
   status: "waiting" | "active" | "completed"
@@ -36,7 +38,9 @@ export type ChallengeData = {
 export async function createChallenge(
   subjectId: string,
   numQuestions: number,
-  timeLimitSecs: number
+  timeLimitSecs: number,
+  schoolSource: "specific" | "random" | "all" = "all",
+  schoolId?: string
 ): Promise<ActionResult<{ code: string; participantId: string }>> {
   const user = await getAppUser()
   if (!user) return { success: false, error: "UNAUTHORIZED" }
@@ -51,15 +55,52 @@ export async function createChallenge(
 
   if (!subject) return { success: false, error: "INVALID_SUBJECT" }
 
-  // Pick random questions for this subject from bank
+  // Resolve which school's questions to use
+  let resolvedSchoolId: string | null = null
+  let resolvedSchoolName: string | null = null
+
+  if (schoolSource === "specific" && schoolId) {
+    const { data: school } = await admin
+      .from("schools")
+      .select("id, name")
+      .eq("id", schoolId)
+      .maybeSingle()
+    if (!school) return { success: false, error: "INVALID_SUBJECT" }
+    resolvedSchoolId = school.id
+    resolvedSchoolName = school.name
+  } else if (schoolSource === "random") {
+    // Pick a random school that has questions for this subject
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: schoolRows } = await (admin as any)
+      .from("questions")
+      .select("school_id, school:schools(id, name)")
+      .eq("subject_id", subjectId)
+      .eq("is_bank_question", true)
+      .not("school_id", "is", null)
+      .limit(500)
+
+    const schoolMap = new Map<string, string>()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const row of (schoolRows ?? []) as any[]) {
+      if (row.school_id && row.school?.name) schoolMap.set(row.school_id, row.school.name)
+    }
+    const schoolIds = Array.from(schoolMap.keys())
+    if (!schoolIds.length) return { success: false, error: "INSUFFICIENT_QUESTIONS" }
+    resolvedSchoolId = schoolIds[Math.floor(Math.random() * schoolIds.length)]
+    resolvedSchoolName = schoolMap.get(resolvedSchoolId) ?? null
+  }
+
+  // Pick random questions for this subject (filtered by school if specified)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: pool } = await (admin as any)
+  let query = (admin as any)
     .from("questions")
     .select("id")
     .eq("subject_id", subjectId)
     .eq("is_bank_question", true)
     .limit(500)
+  if (resolvedSchoolId) query = query.eq("school_id", resolvedSchoolId)
 
+  const { data: pool } = await query
   if (!pool?.length) return { success: false, error: "INSUFFICIENT_QUESTIONS" }
 
   const shuffled = [...pool].sort(() => Math.random() - 0.5)
@@ -88,6 +129,8 @@ export async function createChallenge(
       num_questions: questionIds.length,
       time_limit_secs: timeLimitSecs,
       question_ids: questionIds,
+      school_name: resolvedSchoolName,
+      school_source: schoolSource,
     })
     .select("id, code")
     .single()
@@ -113,7 +156,7 @@ export async function getChallenge(code: string): Promise<ActionResult<Challenge
 
   const { data: challenge } = await admin
     .from("challenges")
-    .select("id, code, creator_id, subject_name, num_questions, time_limit_secs, status, expires_at")
+    .select("id, code, creator_id, subject_name, school_name, school_source, num_questions, time_limit_secs, status, expires_at")
     .eq("code", code.toUpperCase())
     .maybeSingle()
 

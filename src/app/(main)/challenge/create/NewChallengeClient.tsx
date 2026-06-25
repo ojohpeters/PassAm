@@ -5,39 +5,57 @@ import { useRouter } from "next/navigation"
 import { createChallenge } from "@/actions/challenge.actions"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
-import { Swords, Clock, BookOpen, Loader2, Copy, Check } from "lucide-react"
+import { Swords, Clock, BookOpen, Loader2, Copy, Check, School, Shuffle, Globe } from "lucide-react"
 
 type Subject = { id: string; name: string; count: number }
+type School  = { id: string; name: string; abbreviation: string; count: number }
+
+type SchoolSource = "all" | "specific" | "random"
 
 const TIME_OPTIONS = [
-  { label: "5 min", secs: 300 },
-  { label: "10 min", secs: 600 },
-  { label: "15 min", secs: 900 },
+  { label: "5 min",  secs: 300  },
+  { label: "10 min", secs: 600  },
+  { label: "15 min", secs: 900  },
   { label: "20 min", secs: 1200 },
   { label: "30 min", secs: 1800 },
 ]
 const Q_OPTIONS = [10, 20, 30, 40]
 
-export function NewChallengeClient({ subjects }: { subjects: Subject[] }) {
+const SOURCE_OPTIONS: { value: SchoolSource; label: string; desc: string; icon: React.ElementType }[] = [
+  { value: "all",      label: "All schools",   desc: "Mix from every school",            icon: Globe    },
+  { value: "specific", label: "Pick a school", desc: "Questions from one school only",   icon: School   },
+  { value: "random",   label: "Random school", desc: "We pick a school at random",       icon: Shuffle  },
+]
+
+export function NewChallengeClient({ subjects, schools }: { subjects: Subject[]; schools: School[] }) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [selectedSubject, setSelectedSubject] = useState<string>(subjects[0]?.id ?? "")
   const [numQuestions, setNumQuestions] = useState(20)
   const [timeLimitSecs, setTimeLimitSecs] = useState(1200)
+  const [schoolSource, setSchoolSource] = useState<SchoolSource>("all")
+  const [selectedSchool, setSelectedSchool] = useState<string>(schools[0]?.id ?? "")
   const [created, setCreated] = useState<{ code: string; participantId: string } | null>(null)
   const [copied, setCopied] = useState(false)
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? (typeof window !== "undefined" ? window.location.origin : "")
+  const appUrl = typeof window !== "undefined" ? window.location.origin : ""
   const shareUrl = created ? `${appUrl}/challenge/${created.code}` : ""
 
   async function handleCreate() {
     if (!selectedSubject) { toast.error("Select a subject"); return }
+    if (schoolSource === "specific" && !selectedSchool) { toast.error("Pick a school"); return }
     setLoading(true)
-    const result = await createChallenge(selectedSubject, numQuestions, timeLimitSecs)
+    const result = await createChallenge(
+      selectedSubject,
+      numQuestions,
+      timeLimitSecs,
+      schoolSource,
+      schoolSource === "specific" ? selectedSchool : undefined
+    )
     setLoading(false)
     if (!result.success) {
       const msg = result.error === "INSUFFICIENT_QUESTIONS"
-        ? "Not enough questions for this subject yet."
+        ? "Not enough questions for that combination — try a different subject or school."
         : "Failed to create challenge — try again."
       toast.error(msg)
       return
@@ -54,10 +72,11 @@ export function NewChallengeClient({ subjects }: { subjects: Subject[] }) {
   }
 
   function handleShare() {
+    const subjectName = subjects.find(s => s.id === selectedSubject)?.name ?? "POST-UTME"
     if (navigator.share) {
       navigator.share({
         title: "PrepIQ 1v1 Challenge",
-        text: `I'm challenging you! Can you beat my score on ${subjects.find(s => s.id === selectedSubject)?.name}?`,
+        text: `I'm challenging you on ${subjectName}! Can you beat my score?`,
         url: shareUrl,
       })
     } else {
@@ -65,6 +84,7 @@ export function NewChallengeClient({ subjects }: { subjects: Subject[] }) {
     }
   }
 
+  // ── Created state ──────────────────────────────────────────────────────
   if (created) {
     return (
       <div className="mx-auto max-w-lg space-y-5 px-4 py-8">
@@ -77,7 +97,7 @@ export function NewChallengeClient({ subjects }: { subjects: Subject[] }) {
         <div className="rounded-2xl border bg-background p-4 space-y-3">
           <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Challenge link</p>
           <div className="flex items-center gap-2 rounded-xl border bg-muted/50 px-3 py-2.5">
-            <span className="flex-1 truncate text-sm font-mono text-foreground">{shareUrl}</span>
+            <span className="flex-1 truncate text-sm font-mono">{shareUrl}</span>
             <button onClick={handleCopy} className="shrink-0 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground">
               {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
             </button>
@@ -112,6 +132,7 @@ export function NewChallengeClient({ subjects }: { subjects: Subject[] }) {
     )
   }
 
+  // ── Create form ────────────────────────────────────────────────────────
   return (
     <div className="min-h-full bg-background pb-12">
       {/* Hero */}
@@ -123,7 +144,7 @@ export function NewChallengeClient({ subjects }: { subjects: Subject[] }) {
           </div>
           <h1 className="text-2xl font-black tracking-tight">Challenge a Friend</h1>
           <p className="mt-2 text-sm text-white/70 leading-relaxed">
-            Pick a subject and set the rules. Share a link — your opponent can play at any time, even without an account.
+            Set the subject, pick the school, and set your rules. Your opponent can play any time — even without an account.
           </p>
         </div>
       </div>
@@ -148,13 +169,73 @@ export function NewChallengeClient({ subjects }: { subjects: Subject[] }) {
                     : "border-border hover:border-primary/30 hover:bg-muted/30"
                 )}
               >
-                <p className={cn("text-sm font-bold", selectedSubject === s.id ? "text-primary" : "text-foreground")}>
+                <p className={cn("text-sm font-bold truncate", selectedSubject === s.id ? "text-primary" : "text-foreground")}>
                   {s.name}
                 </p>
                 <p className="text-xs text-muted-foreground">{s.count} questions</p>
               </button>
             ))}
           </div>
+        </div>
+
+        {/* School source */}
+        <div className="rounded-2xl border bg-background p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <School className="h-4 w-4 text-muted-foreground" />
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Question source</p>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {SOURCE_OPTIONS.map(({ value, label, icon: Icon }) => (
+              <button
+                key={value}
+                onClick={() => setSchoolSource(value)}
+                className={cn(
+                  "flex flex-col items-center gap-1.5 rounded-xl border-2 px-2 py-3 text-center transition-all",
+                  schoolSource === value
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-primary/30 hover:bg-muted/30"
+                )}
+              >
+                <Icon className={cn("h-5 w-5", schoolSource === value ? "text-primary" : "text-muted-foreground")} />
+                <span className={cn("text-xs font-bold leading-tight", schoolSource === value ? "text-primary" : "text-foreground")}>
+                  {label}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* School picker (shown only when 'specific') */}
+          {schoolSource === "specific" && (
+            <div className="space-y-2 pt-1">
+              <p className="text-xs text-muted-foreground">Choose a school:</p>
+              <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                {schools.map((sc) => (
+                  <button
+                    key={sc.id}
+                    onClick={() => setSelectedSchool(sc.id)}
+                    className={cn(
+                      "rounded-xl border-2 px-3 py-2.5 text-left transition-all",
+                      selectedSchool === sc.id
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-primary/30 hover:bg-muted/30"
+                    )}
+                  >
+                    <p className={cn("text-sm font-black", selectedSchool === sc.id ? "text-primary" : "text-foreground")}>
+                      {sc.abbreviation}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">{sc.name}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {schoolSource === "random" && (
+            <p className="text-xs text-muted-foreground rounded-xl bg-muted/50 px-3 py-2">
+              <Shuffle className="inline h-3 w-3 mr-1" />
+              We&apos;ll randomly pick a school that has questions for your selected subject. Both players won&apos;t know which one until the challenge is accepted.
+            </p>
+          )}
         </div>
 
         {/* Questions */}

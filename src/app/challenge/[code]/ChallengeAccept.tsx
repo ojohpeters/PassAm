@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { joinChallenge } from "@/actions/challenge.actions"
 import type { ChallengeData } from "@/actions/challenge.actions"
 import { toast } from "sonner"
-import { Swords, Clock, BookOpen, CheckCircle2, Loader2, Share2, User } from "lucide-react"
+import { Swords, Clock, BookOpen, CheckCircle2, Loader2, Share2, User, School } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 
@@ -101,6 +101,16 @@ export function ChallengeAccept({ code, challenge, currentUserId }: Props) {
             <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-semibold">
               <Clock className="mr-1 inline h-3 w-3" />{fmtTime(challenge.time_limit_secs)}
             </span>
+            {challenge.school_name && (
+              <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-semibold">
+                <School className="mr-1 inline h-3 w-3" />{challenge.school_name}
+              </span>
+            )}
+            {!challenge.school_name && challenge.school_source === "all" && (
+              <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-semibold">
+                All schools
+              </span>
+            )}
             <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-semibold uppercase">
               Code: {code}
             </span>
