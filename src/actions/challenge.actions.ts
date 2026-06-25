@@ -19,6 +19,7 @@ export type ChallengeParticipant = {
   time_taken_secs: number | null
   completed_at: string | null
   started_at: string | null
+  answers: Record<string, string> | null
 }
 
 export type ChallengeData = {
@@ -168,7 +169,7 @@ export async function getChallenge(code: string): Promise<ActionResult<Challenge
 
   const { data: participants } = await admin
     .from("challenge_participants")
-    .select("id, display_name, is_creator, score, time_taken_secs, completed_at, started_at")
+    .select("id, display_name, is_creator, score, time_taken_secs, completed_at, started_at, answers")
     .eq("challenge_id", challenge.id)
     .order("is_creator", { ascending: false })
 
@@ -395,7 +396,7 @@ export async function getChallengeResults(code: string): Promise<ActionResult<Ch
 
   const { data: participants } = await admin
     .from("challenge_participants")
-    .select("id, display_name, is_creator, score, time_taken_secs, completed_at, started_at")
+    .select("id, display_name, is_creator, score, time_taken_secs, completed_at, started_at, answers")
     .eq("challenge_id", challenge.id)
     .order("is_creator", { ascending: false })
 
