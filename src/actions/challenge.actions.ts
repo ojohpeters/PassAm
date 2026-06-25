@@ -78,7 +78,6 @@ export async function createChallenge(
       .from("questions")
       .select("school_id, school:schools(id, name)")
       .eq("subject_id", subjectId)
-      .eq("is_bank_question", true)
       .not("school_id", "is", null)
       .limit(500)
 
@@ -99,7 +98,6 @@ export async function createChallenge(
     .from("questions")
     .select("id")
     .eq("subject_id", subjectId)
-    .eq("is_bank_question", true)
     .limit(500)
   if (resolvedSchoolId) query = query.eq("school_id", resolvedSchoolId)
 

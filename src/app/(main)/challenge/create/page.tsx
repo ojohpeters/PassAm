@@ -9,12 +9,11 @@ export default async function CreateChallengePage() {
 
   const admin = createAdminClient()
 
-  // Get subjects + schools that have bank questions
+  // Get all questions — no is_bank_question filter so counts match the full question bank
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: rows } = await (admin as any)
     .from("questions")
     .select("subject_id, school_id, subject:subjects(id, name), school:schools(id, name, abbreviation)")
-    .eq("is_bank_question", true)
 
   const subjectMap = new Map<string, { id: string; name: string; count: number }>()
   const schoolMap = new Map<string, { id: string; name: string; abbreviation: string; count: number }>()
