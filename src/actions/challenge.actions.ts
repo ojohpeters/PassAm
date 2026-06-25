@@ -45,7 +45,8 @@ export async function createChallenge(
   const user = await getAppUser()
   if (!user) return { success: false, error: "UNAUTHORIZED" }
 
-  const admin = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const admin = createAdminClient() as any
 
   const { data: subject } = await admin
     .from("subjects")
@@ -153,7 +154,8 @@ export async function createChallenge(
 }
 
 export async function getChallenge(code: string): Promise<ActionResult<ChallengeData>> {
-  const admin = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const admin = createAdminClient() as any
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: challenge } = await (admin as any)
@@ -180,7 +182,8 @@ export async function joinChallenge(
   code: string,
   guestName?: string
 ): Promise<ActionResult<{ participantId: string; isNew: boolean }>> {
-  const admin = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const admin = createAdminClient() as any
   const user = await getAppUser()
 
   const { data: challenge } = await admin
@@ -234,7 +237,8 @@ export async function getChallengePlay(
   code: string,
   participantId: string
 ): Promise<ActionResult<{ questions: QuestionWithOptions[]; timeLimitSecs: number; subjectName: string }>> {
-  const admin = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const admin = createAdminClient() as any
 
   const { data: challenge } = await admin
     .from("challenges")
@@ -307,7 +311,8 @@ export async function submitChallengeAttempt(
   answers: Record<string, string | null>,
   timeTakenSecs: number
 ): Promise<ActionResult<{ code: string }>> {
-  const admin = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const admin = createAdminClient() as any
 
   const { data: challenge } = await admin
     .from("challenges")
@@ -377,7 +382,8 @@ export type ChallengeResultData = {
 }
 
 export async function getChallengeResults(code: string): Promise<ActionResult<ChallengeResultData>> {
-  const admin = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const admin = createAdminClient() as any
 
   const { data: challenge } = await admin
     .from("challenges")
