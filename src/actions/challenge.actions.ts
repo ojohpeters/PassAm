@@ -119,7 +119,8 @@ export async function createChallenge(
   const { data: profile } = await admin.from("profiles").select("name").eq("id", user.id).maybeSingle()
   const displayName = (profile as { name?: string } | null)?.name || user.email?.split("@")[0] || "Challenger"
 
-  const { data: challenge, error: challengeErr } = await admin
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: challenge, error: challengeErr } = await (admin as any)
     .from("challenges")
     .insert({
       code,
@@ -154,7 +155,8 @@ export async function createChallenge(
 export async function getChallenge(code: string): Promise<ActionResult<ChallengeData>> {
   const admin = createAdminClient()
 
-  const { data: challenge } = await admin
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: challenge } = await (admin as any)
     .from("challenges")
     .select("id, code, creator_id, subject_name, school_name, school_source, num_questions, time_limit_secs, status, expires_at")
     .eq("code", code.toUpperCase())
