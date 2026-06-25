@@ -38,7 +38,17 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  if (PUBLIC_PATHS.includes(pathname) || pathname.startsWith("/api/") || pathname.startsWith("/auth/") || pathname.startsWith("/quiz/")) {
+  // Allow challenge lobby, play, and results pages for guests (so they can join/play without an account)
+  const isPublicChallengeRoute =
+    pathname.startsWith("/challenge/") && !pathname.startsWith("/challenge/create")
+
+  if (
+    PUBLIC_PATHS.includes(pathname) ||
+    pathname.startsWith("/api/") ||
+    pathname.startsWith("/auth/") ||
+    pathname.startsWith("/quiz/") ||
+    isPublicChallengeRoute
+  ) {
     return supabaseResponse
   }
 

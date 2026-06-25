@@ -2,6 +2,7 @@
 
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getAppUser } from "@/lib/auth"
+import { unstable_noStore as noStore } from "next/cache"
 import type { ActionResult, QuestionWithOptions } from "@/types"
 
 function generateCode(): string {
@@ -155,6 +156,7 @@ export async function createChallenge(
 }
 
 export async function getChallenge(code: string): Promise<ActionResult<ChallengeData>> {
+  noStore()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const admin = createAdminClient() as any
 
@@ -383,6 +385,7 @@ export type ChallengeResultData = {
 }
 
 export async function getChallengeResults(code: string): Promise<ActionResult<ChallengeResultData>> {
+  noStore() // always fetch fresh — never serve cached participant/score data
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const admin = createAdminClient() as any
 

@@ -198,7 +198,7 @@ export function ChallengeAccept({ code, challenge, currentUserId }: Props) {
 
         {iDone && (
           <Link
-            href={`/challenge/${code}/results`}
+            href={`/challenge/${code}/results?p=${myParticipantId}`}
             className="flex w-full items-center justify-center gap-2 rounded-2xl bg-green-600 py-4 text-base font-black text-white shadow-lg shadow-green-600/30 transition-all hover:opacity-90 active:scale-[0.98]"
           >
             <CheckCircle2 className="h-5 w-5" />

@@ -1,9 +1,10 @@
 export const dynamic = "force-dynamic"
 
 import { getChallengeResults } from "@/actions/challenge.actions"
+import { getAppUser } from "@/lib/auth"
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { Trophy, Clock, Swords, CheckCircle2, Hourglass, Share2, Loader2 } from "lucide-react"
+import { Trophy, Clock, Swords, CheckCircle2, Hourglass, Share2, Loader2, Sparkles } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ResultsPoller } from "./ResultsPoller"
 
@@ -21,24 +22,31 @@ export default async function ChallengeResultsPage({
   params: { code: string }
   searchParams: { p?: string }
 }) {
-  const result = await getChallengeResults(params.code)
+  const [result, currentUser] = await Promise.all([
+    getChallengeResults(params.code),
+    getAppUser(),
+  ])
   if (!result.success) notFound()
+  const isGuest = !currentUser
 
   const { challenge, participants, questions } = result.data
   const creator    = participants.find((p) => p.is_creator)
   const challenger = participants.find((p) => !p.is_creator)
   const myParticipantId = searchParams.p
 
-  // Use challenge.status as the authoritative "both done" signal
-  // to avoid race conditions where one player's completed_at was cached
+  // bothDone: use status as the authoritative signal (set by server when last player submits)
   const bothDone =
     challenge.status === "completed" ||
     !!(creator?.completed_at && challenger?.completed_at)
 
+  // Only determine winner when both actually have score data (prevents false ties from stale data)
+  const creatorScore    = creator?.score ?? null
+  const challengerScore = challenger?.score ?? null
+  const haveRealScores  = creatorScore !== null && challengerScore !== null
   let winner: typeof creator = undefined
-  if (bothDone && creator && challenger) {
-    if ((creator.score ?? 0) > (challenger.score ?? 0)) winner = creator
-    else if ((challenger.score ?? 0) > (creator.score ?? 0)) winner = challenger
+  if (haveRealScores && creator && challenger) {
+    if (creatorScore! > challengerScore!) winner = creator
+    else if (challengerScore! > creatorScore!) winner = challenger
   }
 
   const mySlot = participants.find((p) => p.id === myParticipantId)
@@ -61,11 +69,11 @@ export default async function ChallengeResultsPage({
             1v1 Challenge · {params.code.toUpperCase()}
           </div>
           <h1 className="text-2xl font-black tracking-tight">
-            {bothDone
+            {bothDone && haveRealScores
               ? winner
                 ? mySlot?.id === winner.id ? "You win! 🏆" : `${winner.display_name} wins! 🏆`
                 : "It's a tie! 🤝"
-              : mySlot?.completed_at
+              : mySlot?.completed_at || mySlot?.score !== undefined && mySlot?.score !== null
                 ? "Your score is in!"
                 : "Results"}
           </h1>
@@ -101,7 +109,7 @@ export default async function ChallengeResultsPage({
                 <p className="text-xs font-bold text-muted-foreground truncate w-full text-center">
                   {isMe ? "You" : p.display_name}
                 </p>
-                {p.completed_at ? (
+                {p.score !== null && p.score !== undefined ? (
                   <>
                     <p className="mt-2 text-3xl font-black text-foreground">{pct}%</p>
                     <p className="text-xs text-muted-foreground">{p.score}/{challenge.num_questions}</p>
@@ -135,8 +143,8 @@ export default async function ChallengeResultsPage({
           </div>
         )}
 
-        {/* Question breakdown — only show when both done */}
-        {bothDone && questions.length > 0 && (
+        {/* Question breakdown — only show when both have real score data */}
+        {haveRealScores && questions.length > 0 && (
           <div className="space-y-2">
             <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Question Breakdown</p>
             <div className="space-y-2">
@@ -167,6 +175,34 @@ export default async function ChallengeResultsPage({
           </div>
         )}
 
+        {/* Guest sign-up prompt */}
+        {isGuest && (
+          <div className="rounded-2xl border-2 border-primary/30 bg-primary/5 p-5 text-center space-y-3">
+            <div className="flex items-center justify-center gap-2 text-primary">
+              <Sparkles className="h-5 w-5" />
+              <span className="font-black text-base">Enjoyed the challenge?</span>
+            </div>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Create a free account to track your progress, unlock full exam practice, and challenge friends any time.
+            </p>
+            <div className="flex flex-col gap-2">
+              <Link
+                href={`/register?callbackUrl=/challenge/${params.code}/results`}
+                className="flex items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-black text-primary-foreground hover:opacity-90"
+              >
+                <Sparkles className="h-4 w-4" />
+                Sign up free — it&apos;s quick
+              </Link>
+              <Link
+                href={`/login?callbackUrl=/challenge/${params.code}/results`}
+                className="text-center text-xs text-muted-foreground underline underline-offset-2"
+              >
+                Already have an account? Log in
+              </Link>
+            </div>
+          </div>
+        )}
+
         {/* Actions */}
         <div className="flex flex-col gap-3">
           <Link
@@ -176,17 +212,21 @@ export default async function ChallengeResultsPage({
             <Share2 className="h-4 w-4" />
             Share this challenge
           </Link>
-          <Link
-            href="/challenge/create"
-            className="flex items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-black text-primary-foreground shadow-sm shadow-primary/30 hover:opacity-90"
-          >
-            <Swords className="h-4 w-4" />
-            Create your own challenge
-          </Link>
-          {myParticipantId && (
-            <Link href="/dashboard" className="text-center text-xs text-muted-foreground underline underline-offset-2">
-              Back to dashboard
-            </Link>
+          {!isGuest && (
+            <>
+              <Link
+                href="/challenge/create"
+                className="flex items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-black text-primary-foreground shadow-sm shadow-primary/30 hover:opacity-90"
+              >
+                <Swords className="h-4 w-4" />
+                Create your own challenge
+              </Link>
+              {myParticipantId && (
+                <Link href="/dashboard" className="text-center text-xs text-muted-foreground underline underline-offset-2">
+                  Back to dashboard
+                </Link>
+              )}
+            </>
           )}
         </div>
       </div>
