@@ -174,6 +174,59 @@ export async function getQuestions(
   return { questions: questions ?? [], total: count ?? 0, pages: Math.ceil((count ?? 0) / limit) }
 }
 
+export async function getQuestion(id: string) {
+  try { await requireAdmin() } catch { return null }
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from("questions")
+    .select("id, text, explanation, year, school_id, subject_id, options(id, label, text, is_correct)")
+    .eq("id", id)
+    .single()
+  return data ?? null
+}
+
+export async function updateQuestion(
+  id: string,
+  data: {
+    text: string
+    explanation?: string
+    year?: number
+    schoolId: string
+    subjectId: string
+    options: { label: string; text: string; isCorrect: boolean }[]
+  }
+): Promise<ActionResult<void>> {
+  try { await requireAdmin() } catch { return { success: false, error: "UNAUTHORIZED" } }
+
+  const admin = createAdminClient()
+
+  const { error: qErr } = await admin
+    .from("questions")
+    .update({
+      text: data.text,
+      explanation: data.explanation ?? null,
+      year: data.year ?? null,
+      school_id: data.schoolId,
+      subject_id: data.subjectId,
+    })
+    .eq("id", id)
+
+  if (qErr) return { success: false, error: "INTERNAL" }
+
+  // Replace options — delete existing, re-insert with correct flags
+  await admin.from("options").delete().eq("question_id", id)
+  await admin.from("options").insert(
+    data.options.map((opt) => ({
+      question_id: id,
+      label: opt.label,
+      text: opt.text,
+      is_correct: opt.isCorrect,
+    }))
+  )
+
+  return { success: true, data: undefined }
+}
+
 export async function deleteQuestion(id: string): Promise<ActionResult<void>> {
   try {
     await requireAdmin()

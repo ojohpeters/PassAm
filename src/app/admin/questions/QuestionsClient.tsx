@@ -5,9 +5,10 @@ import { getQuestions, deleteQuestions } from "@/actions/admin.actions"
 import { toast } from "sonner"
 import {
   Trash2, CheckSquare, Square, Loader2, ChevronLeft, ChevronRight,
-  Upload, AlertTriangle, X, Hash, Search, Filter
+  Upload, AlertTriangle, X, Hash, Search, Filter, Pencil
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { EditQuestionModal } from "@/components/admin/EditQuestionModal"
 
 type School = { id: string; name: string; abbreviation: string }
 type Subject = { id: string; name: string }
@@ -42,6 +43,9 @@ export function QuestionsClient({
   const [csvPreview, setCsvPreview] = useState<string[]>([])
   const [csvFileName, setCsvFileName] = useState("")
   const csvInputRef = useRef<HTMLInputElement>(null)
+
+  // Edit modal
+  const [editingId, setEditingId] = useState<string | null>(null)
 
   // Confirm delete modal
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -135,6 +139,15 @@ export function QuestionsClient({
 
   return (
     <div className="space-y-6">
+      {editingId && (
+        <EditQuestionModal
+          questionId={editingId}
+          schools={schools}
+          subjects={subjects}
+          onClose={() => setEditingId(null)}
+          onSaved={() => loadQuestions(schoolId, subjectId, page)}
+        />
+      )}
       {/* Floating action bar */}
       {someSelected && (
         <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 animate-in slide-in-from-bottom-4 duration-200">
@@ -259,7 +272,7 @@ export function QuestionsClient({
                   key={q.id}
                   onClick={() => toggleSelect(q.id)}
                   className={cn(
-                    "flex cursor-pointer items-start gap-3 px-4 py-3 transition-colors",
+                    "group flex cursor-pointer items-start gap-3 px-4 py-3 transition-colors",
                     isSelected ? "bg-primary/5" : "hover:bg-muted/30"
                   )}
                 >
@@ -290,6 +303,13 @@ export function QuestionsClient({
                       )}
                     </div>
                   </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setEditingId(q.id) }}
+                    className="ml-2 shrink-0 rounded-lg p-1.5 text-muted-foreground opacity-0 transition-all group-hover:opacity-100 hover:bg-muted hover:text-foreground"
+                    title="Edit question"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               )
             })}
