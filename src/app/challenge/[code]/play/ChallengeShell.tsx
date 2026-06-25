@@ -155,6 +155,13 @@ export function ChallengeShell({ code, participantId, questions, timeLimitSecs, 
     }
   }, []) // eslint-disable-line
 
+  function handleSelectAnswer(questionId: string, optId: string) {
+    selectAnswer(questionId, optId)
+    if (currentIndex < questions.length - 1) {
+      setTimeout(() => goTo(currentIndex + 1), 350)
+    }
+  }
+
   const question = questions[currentIndex]
   const answeredCount = Object.values(answers).filter((v) => v !== null).length
   const totalSecs = timeLeft % 60
@@ -245,7 +252,7 @@ export function ChallengeShell({ code, participantId, questions, timeLimitSecs, 
               return (
                 <button
                   key={opt.id}
-                  onClick={() => selectAnswer(question.id, opt.id)}
+                  onClick={() => handleSelectAnswer(question.id, opt.id)}
                   className={cn(
                     "flex w-full items-start gap-3 rounded-2xl border-2 p-4 text-left transition-all duration-150 active:scale-[0.99]",
                     selected

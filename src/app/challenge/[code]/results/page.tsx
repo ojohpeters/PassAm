@@ -1,8 +1,11 @@
+export const dynamic = "force-dynamic"
+
 import { getChallengeResults } from "@/actions/challenge.actions"
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { Trophy, Clock, Swords, CheckCircle2, Hourglass, Share2 } from "lucide-react"
+import { Trophy, Clock, Swords, CheckCircle2, Hourglass, Share2, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { ResultsPoller } from "./ResultsPoller"
 
 function fmtTime(secs: number | null) {
   if (secs == null) return "—"
@@ -22,22 +25,29 @@ export default async function ChallengeResultsPage({
   if (!result.success) notFound()
 
   const { challenge, participants, questions } = result.data
-  const creator = participants.find((p) => p.is_creator)
+  const creator    = participants.find((p) => p.is_creator)
   const challenger = participants.find((p) => !p.is_creator)
   const myParticipantId = searchParams.p
 
-  const bothDone = creator?.completed_at && challenger?.completed_at
+  // Use challenge.status as the authoritative "both done" signal
+  // to avoid race conditions where one player's completed_at was cached
+  const bothDone =
+    challenge.status === "completed" ||
+    !!(creator?.completed_at && challenger?.completed_at)
+
   let winner: typeof creator = undefined
   if (bothDone && creator && challenger) {
     if ((creator.score ?? 0) > (challenger.score ?? 0)) winner = creator
     else if ((challenger.score ?? 0) > (creator.score ?? 0)) winner = challenger
-    // null = tie
   }
 
-  const shareUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/challenge/${params.code}`
+  const mySlot = participants.find((p) => p.id === myParticipantId)
 
   return (
     <div className="min-h-screen bg-background pb-12">
+      {/* Auto-refresh until both done */}
+      <ResultsPoller bothDone={bothDone} />
+
       {/* Header */}
       <div className={cn(
         "px-5 py-8 text-white",
@@ -51,7 +61,13 @@ export default async function ChallengeResultsPage({
             1v1 Challenge · {params.code.toUpperCase()}
           </div>
           <h1 className="text-2xl font-black tracking-tight">
-            {bothDone ? (winner ? `${winner.display_name} wins! 🏆` : "It's a tie! 🤝") : "Results"}
+            {bothDone
+              ? winner
+                ? mySlot?.id === winner.id ? "You win! 🏆" : `${winner.display_name} wins! 🏆`
+                : "It's a tie! 🤝"
+              : mySlot?.completed_at
+                ? "Your score is in!"
+                : "Results"}
           </h1>
           <p className="mt-1 text-sm text-white/80">{challenge.subject_name}</p>
         </div>
@@ -69,17 +85,21 @@ export default async function ChallengeResultsPage({
               </div>
             )
             if (!p) return null
-            const isWinner = winner?.id === p.id
-            const pct = p.score != null ? Math.round((p.score / challenge.num_questions) * 100) : null
+            const isWinner  = bothDone && winner?.id === p.id
+            const isMe      = p.id === myParticipantId
+            const pct       = p.score != null ? Math.round((p.score / challenge.num_questions) * 100) : null
             return (
               <div key={p.id} className={cn(
                 "flex flex-col items-center rounded-2xl border-2 p-4 text-center",
-                isWinner ? "border-amber-400 bg-amber-50 dark:bg-amber-950/20" : "border-border bg-background"
+                isWinner
+                  ? "border-amber-400 bg-amber-50 dark:bg-amber-950/20"
+                  : isMe && p.completed_at
+                    ? "border-primary/40 bg-primary/5"
+                    : "border-border bg-background"
               )}>
                 {isWinner && <Trophy className="mb-1 h-5 w-5 text-amber-500" />}
                 <p className="text-xs font-bold text-muted-foreground truncate w-full text-center">
-                  {p.display_name}
-                  {p.is_creator && <span className="ml-1 text-amber-500">(you)</span>}
+                  {isMe ? "You" : p.display_name}
                 </p>
                 {p.completed_at ? (
                   <>
@@ -88,38 +108,42 @@ export default async function ChallengeResultsPage({
                     <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                       <Clock className="h-3 w-3" />{fmtTime(p.time_taken_secs)}
                     </p>
+                    <CheckCircle2 className="mt-2 h-4 w-4 text-green-500" />
                   </>
                 ) : (
-                  <>
-                    <p className="mt-2 text-sm font-semibold text-muted-foreground">
-                      {p.started_at ? "In progress…" : "Not started"}
+                  <div className="mt-3 flex flex-col items-center gap-1.5">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground">
+                      {p.started_at ? "Playing…" : "Not started"}
                     </p>
-                  </>
+                  </div>
                 )}
-                {p.completed_at && <CheckCircle2 className="mt-2 h-4 w-4 text-green-500" />}
               </div>
             )
           })}
         </div>
 
-        {/* Not both done notice */}
+        {/* Status notice */}
         {!bothDone && (
-          <div className="rounded-2xl border bg-muted/50 px-4 py-3 text-sm text-muted-foreground text-center">
+          <div className="flex items-center justify-center gap-2 rounded-2xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
             {!challenger
-              ? "Waiting for your opponent to accept the challenge."
-              : `Waiting for ${(!creator?.completed_at ? creator?.display_name : challenger?.display_name) ?? "opponent"} to finish.`}
+              ? "Waiting for your opponent to join."
+              : mySlot?.completed_at
+                ? `Waiting for ${(!creator?.completed_at ? creator?.display_name : challenger?.display_name) ?? "opponent"} to finish…`
+                : "Finish your game to see the final result."}
           </div>
         )}
 
-        {/* Question breakdown */}
+        {/* Question breakdown — only show when both done */}
         {bothDone && questions.length > 0 && (
           <div className="space-y-2">
             <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Question Breakdown</p>
             <div className="space-y-2">
               {questions.map((q, i) => {
-                const creatorAns = (creator?.answers as Record<string, string> | null)?.[q.id]
+                const creatorAns    = (creator?.answers as Record<string, string> | null)?.[q.id]
                 const challengerAns = (challenger?.answers as Record<string, string> | null)?.[q.id]
-                const creatorCorrect = creatorAns === q.correct_option_id
+                const creatorCorrect    = creatorAns === q.correct_option_id
                 const challengerCorrect = challengerAns === q.correct_option_id
                 return (
                   <div key={q.id} className="rounded-xl border bg-background p-3 space-y-1.5">
@@ -127,11 +151,11 @@ export default async function ChallengeResultsPage({
                     <p className="text-xs leading-relaxed line-clamp-2">{q.text}</p>
                     <div className="flex gap-4 text-xs">
                       <span className={cn("font-semibold", creatorCorrect ? "text-green-600" : "text-red-500")}>
-                        {creator?.display_name?.split(" ")[0]}: {creatorAns ? q.options.find(o => o.id === creatorAns)?.label ?? "—" : "—"} {creatorCorrect ? "✓" : "✗"}
+                        {creator?.id === myParticipantId ? "You" : creator?.display_name?.split(" ")[0]}: {creatorAns ? q.options.find(o => o.id === creatorAns)?.label ?? "—" : "—"} {creatorCorrect ? "✓" : "✗"}
                       </span>
                       {challenger && (
                         <span className={cn("font-semibold", challengerCorrect ? "text-green-600" : "text-red-500")}>
-                          {challenger.display_name?.split(" ")[0]}: {challengerAns ? q.options.find(o => o.id === challengerAns)?.label ?? "—" : "—"} {challengerCorrect ? "✓" : "✗"}
+                          {challenger.id === myParticipantId ? "You" : challenger.display_name?.split(" ")[0]}: {challengerAns ? q.options.find(o => o.id === challengerAns)?.label ?? "—" : "—"} {challengerCorrect ? "✓" : "✗"}
                         </span>
                       )}
                       <span className="ml-auto text-muted-foreground">Ans: {q.correct_label}</span>
@@ -160,10 +184,7 @@ export default async function ChallengeResultsPage({
             Create your own challenge
           </Link>
           {myParticipantId && (
-            <Link
-              href="/dashboard"
-              className="text-center text-xs text-muted-foreground underline underline-offset-2"
-            >
+            <Link href="/dashboard" className="text-center text-xs text-muted-foreground underline underline-offset-2">
               Back to dashboard
             </Link>
           )}
