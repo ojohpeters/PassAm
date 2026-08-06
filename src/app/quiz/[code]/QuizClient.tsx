@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from "react"
 import { startQuizAttempt, answerQuizItem, completeQuizAttempt } from "@/actions/custom-quiz.actions"
 import { cn } from "@/lib/utils"
+import { RichText } from "@/lib/question-format"
 import { CheckCircle2, XCircle, Trophy, FileText, Timer, Calculator, Delete } from "lucide-react"
 import Link from "next/link"
 
@@ -349,7 +350,9 @@ export function QuizClient({ quizId, code, items, prefillName, timeLimitMinutes,
                 {item.subject_label}
               </span>
             )}
-            <p className="text-base font-semibold leading-relaxed">{item.q_text}</p>
+            <p className="text-base font-semibold leading-relaxed">
+              <RichText text={item.q_text} />
+            </p>
 
             <div className="space-y-2.5">
               {OPTION_LABELS.map((letter, i) => {
@@ -380,7 +383,7 @@ export function QuizClient({ quizId, code, items, prefillName, timeLimitMinutes,
                     )}>
                       {letter}
                     </span>
-                    <span className="flex-1 leading-snug">{text}</span>
+                    <RichText text={text} kind="option" className="flex-1 leading-snug" />
                     {answered && isCorrect && <CheckCircle2 className="shrink-0 h-4 w-4 text-emerald-500 mt-0.5" />}
                     {answered && isWrong && <XCircle className="shrink-0 h-4 w-4 text-rose-500 mt-0.5" />}
                   </button>
@@ -398,7 +401,11 @@ export function QuizClient({ quizId, code, items, prefillName, timeLimitMinutes,
                 <p className={cn("font-bold", feedback!.isCorrect ? "text-emerald-700 dark:text-emerald-400" : "text-rose-700 dark:text-rose-400")}>
                   {feedback!.isCorrect ? "Correct!" : `Incorrect — the answer is ${feedback!.correct}`}
                 </p>
-                {feedback!.explanation && <p className="text-muted-foreground text-xs">{feedback!.explanation}</p>}
+                {feedback!.explanation && (
+                  <p className="text-muted-foreground text-xs">
+                    <RichText text={feedback!.explanation} kind="explanation" />
+                  </p>
+                )}
               </div>
             )}
 

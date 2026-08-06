@@ -7,6 +7,7 @@ import {
   Download, AlertCircle, CheckCircle2, Loader2, BookPlus, Globe, Lock, Clock, Flag,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { RichText } from "@/lib/question-format"
 import {
   getUserQuestions,
   bulkAddUserQuestions,
@@ -247,7 +248,7 @@ export function MyQuestionsClient({ initialQuestions }: Props) {
                         {q.subject_label && <span className="inline-block rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">{q.subject_label}</span>}
                         <StatusBadge status={q.moderation_status} />
                       </div>
-                      <p className="text-sm font-semibold leading-snug">{q.q_text}</p>
+                      <p className="text-sm font-semibold leading-snug"><RichText text={q.q_text} /></p>
                       {q.moderation_note && q.moderation_status === "rejected" && (
                         <p className="rounded-lg bg-rose-50 dark:bg-rose-950/20 px-2.5 py-1.5 text-[11px] text-rose-700 dark:text-rose-400">
                           <span className="font-bold">Reason:</span> {q.moderation_note}
@@ -292,9 +293,7 @@ export function MyQuestionsClient({ initialQuestions }: Props) {
                             isCorrect ? "bg-emerald-500 text-white" : "bg-muted text-muted-foreground")}>
                             {OPTION_LABELS[i]}
                           </span>
-                          <span className={cn("truncate", isCorrect ? "font-semibold text-emerald-800 dark:text-emerald-300" : "text-muted-foreground")}>
-                            {q[key]}
-                          </span>
+                          <RichText text={q[key]} kind="option" className={cn("truncate", isCorrect ? "font-semibold text-emerald-800 dark:text-emerald-300" : "text-muted-foreground")} />
                         </div>
                       )
                     })}

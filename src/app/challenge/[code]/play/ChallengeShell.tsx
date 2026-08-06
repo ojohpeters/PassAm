@@ -8,6 +8,7 @@ import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { ChevronLeft, ChevronRight, Flag, Loader2, Swords, ShieldAlert, AlertTriangle, Eye } from "lucide-react"
 import type { QuestionWithOptions } from "@/types"
+import { RichText } from "@/lib/question-format"
 
 const MAX_VIOLATIONS    = 3
 const ANTICHEAT_COUNTDOWN = 5
@@ -243,7 +244,9 @@ export function ChallengeShell({ code, participantId, questions, timeLimitSecs, 
           </div>
 
           {/* Question text */}
-          <p className="text-base font-semibold leading-relaxed md:text-lg">{question.text}</p>
+          <p className="text-base font-semibold leading-relaxed md:text-lg">
+            <RichText text={question.text} />
+          </p>
 
           {/* Options */}
           <div className="space-y-2.5">
@@ -266,9 +269,11 @@ export function ChallengeShell({ code, participantId, questions, timeLimitSecs, 
                   )}>
                     {opt.label}
                   </span>
-                  <span className={cn("text-sm leading-relaxed", selected ? "font-semibold text-foreground" : "text-foreground/80")}>
-                    {opt.text}
-                  </span>
+                  <RichText
+                    text={opt.text}
+                    kind="option"
+                    className={cn("text-sm leading-relaxed", selected ? "font-semibold text-foreground" : "text-foreground/80")}
+                  />
                 </button>
               )
             })}
@@ -277,7 +282,8 @@ export function ChallengeShell({ code, participantId, questions, timeLimitSecs, 
           {/* Explanation (shown when answered) */}
           {!isUnanswered && question.explanation && (
             <div className="rounded-xl bg-blue-50 px-4 py-3 text-xs text-blue-800 dark:bg-blue-950/30 dark:text-blue-300 leading-relaxed">
-              <span className="font-bold">Explanation: </span>{question.explanation}
+              <span className="font-bold">Explanation: </span>
+              <RichText text={question.explanation} kind="explanation" />
             </div>
           )}
         </div>

@@ -6,6 +6,7 @@ import { notFound } from "next/navigation"
 import Link from "next/link"
 import { Trophy, Clock, Swords, CheckCircle2, Hourglass, Share2, Loader2, Sparkles } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { RichText } from "@/lib/question-format"
 import { ResultsPoller } from "./ResultsPoller"
 
 function fmtTime(secs: number | null) {
@@ -156,7 +157,7 @@ export default async function ChallengeResultsPage({
                 return (
                   <div key={q.id} className="rounded-xl border bg-background p-3 space-y-1.5">
                     <p className="text-xs text-muted-foreground font-semibold">Q{i + 1}</p>
-                    <p className="text-xs leading-relaxed line-clamp-2">{q.text}</p>
+                    <p className="text-xs leading-relaxed line-clamp-2"><RichText text={q.text} /></p>
                     <div className="flex gap-4 text-xs">
                       <span className={cn("font-semibold", creatorCorrect ? "text-green-600" : "text-red-500")}>
                         {creator?.id === myParticipantId ? "You" : creator?.display_name?.split(" ")[0]}: {creatorAns ? q.options.find(o => o.id === creatorAns)?.label ?? "—" : "—"} {creatorCorrect ? "✓" : "✗"}

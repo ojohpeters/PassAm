@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react"
 import { Search, Flag, CheckCircle2, AlertCircle, Loader2, Eye, EyeOff, X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { RichText } from "@/lib/question-format"
 import { getCommunityQuestions, reportCommunityQuestion, type CommunityQuestion } from "@/actions/user-questions.actions"
 
 const OPTION_KEYS = ["opt_a", "opt_b", "opt_c", "opt_d"] as const
@@ -157,7 +158,9 @@ export function CommunityQuestionsClient({ initialData, initialTotal, subjects }
                     {q.subject_label && (
                       <span className="mb-1.5 inline-block rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">{q.subject_label}</span>
                     )}
-                    <p className="text-sm font-semibold leading-snug">{q.q_text}</p>
+                    <p className="text-sm font-semibold leading-snug">
+                      <RichText text={q.q_text} />
+                    </p>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <button
@@ -194,16 +197,20 @@ export function CommunityQuestionsClient({ initialData, initialTotal, subjects }
                         )}>
                           {OPTION_LABELS[i]}
                         </span>
-                        <span className={cn("truncate", showCorrect ? "font-semibold text-emerald-800 dark:text-emerald-300" : "text-muted-foreground")}>
-                          {q[key]}
-                        </span>
+                        <RichText
+                          text={q[key]}
+                          kind="option"
+                          className={cn("truncate", showCorrect ? "font-semibold text-emerald-800 dark:text-emerald-300" : "text-muted-foreground")}
+                        />
                       </div>
                     )
                   })}
                 </div>
 
                 {revealed && q.explanation && (
-                  <p className="rounded-lg bg-muted/30 px-3 py-1.5 text-xs text-muted-foreground">{q.explanation}</p>
+                  <p className="rounded-lg bg-muted/30 px-3 py-1.5 text-xs text-muted-foreground">
+                    <RichText text={q.explanation} kind="explanation" />
+                  </p>
                 )}
 
                 {!revealed && (

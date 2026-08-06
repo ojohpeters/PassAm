@@ -402,6 +402,7 @@ export function StudyShell({ questions, durationMins }: Props) {
 
                     <InlineText
                       text={option.text}
+                      kind="option"
                       className="flex-1 pt-0.5 text-sm font-medium leading-relaxed"
                     />
 

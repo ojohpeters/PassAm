@@ -103,7 +103,7 @@ export function DailyQuizShell({ quiz }: { quiz: Quiz }) {
               )}
             >
               <span className="font-mono font-bold">{opt.label}.</span>
-              <span><InlineText text={opt.text} /></span>
+              <span><InlineText text={opt.text} kind="option" /></span>
               {isCorrectOpt && <span className="ml-auto text-green-700">✓</span>}
               {isSelectedWrong && <span className="ml-auto text-red-600">✗</span>}
             </button>

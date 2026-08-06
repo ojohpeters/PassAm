@@ -333,7 +333,7 @@ export function HostPanel({
                           : "bg-muted/40 text-muted-foreground"
                       )}>
                         <span className="font-black w-5 shrink-0 text-xs">{OPTION_LABELS[i]}.</span>
-                        <span className="flex-1 leading-snug"><InlineText text={opt.text} /></span>
+                        <span className="flex-1 leading-snug"><InlineText text={opt.text} kind="option" /></span>
                         {opt.is_correct && <CheckCircle2 className="h-4 w-4 shrink-0" />}
                       </div>
                     ))}
@@ -403,7 +403,7 @@ export function HostPanel({
                             : "bg-muted/50 text-muted-foreground"
                         )}>
                           <span className="font-black w-4 shrink-0">{opt.label}.</span>
-                          <span className="flex-1 leading-snug"><InlineText text={opt.text} /></span>
+                          <span className="flex-1 leading-snug"><InlineText text={opt.text} kind="option" /></span>
                           {opt.is_correct && <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />}
                         </div>
                       ))}

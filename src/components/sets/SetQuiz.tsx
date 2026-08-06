@@ -125,7 +125,7 @@ export function SetQuiz({ questions }: { questions: Question[] }) {
                 {LABELS[i] ?? String.fromCharCode(65 + i)}
               </div>
               <span className="flex-1 pt-0.5 text-sm font-medium leading-relaxed">
-                <InlineText text={opt.text} />
+                <InlineText text={opt.text} kind="option" />
               </span>
               {isRes && isRight   && <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />}
               {isRes && isSelected && !isRight && <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-500" />}

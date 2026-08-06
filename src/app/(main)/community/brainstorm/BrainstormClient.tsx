@@ -265,7 +265,7 @@ export function BrainstormClient({
                     {OPTION_LABELS[i]}
                   </span>
                   <span className="flex-1 text-sm font-medium leading-snug">
-                    <InlineText text={opt.text} />
+                    <InlineText text={opt.text} kind="option" />
                   </span>
                   {showResult && isCorrect && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />}
                   {showResult && isSelected && !isCorrect && <XCircle className="h-4 w-4 shrink-0 text-rose-400" />}

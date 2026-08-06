@@ -1,53 +1,30 @@
 import type { ReactNode } from "react"
+import { renderRich, type TextKind } from "./question-format"
 
 /**
- * Parses inline markup used in question text and options:
- *   __text__   → <u>text</u>   (underlined — used in English questions)
- *   ^{text}    → <sup>text</sup>  (superscript — used for SI units, exponents)
- *   _{text}    → <sub>text</sub>  (subscript — used for chemical formulas)
+ * Inline question markup.
+ *
+ * The parsing lives in ./question-format, which also repairs the mixed and
+ * damaged formats the imported banks arrive in (mojibake, HTML <sup> tags,
+ * LaTeX, bare unit exponents). These two wrappers are kept so every existing
+ * call site picks that up without changing.
+ *
+ * New code can call RichText from "@/lib/question-format" directly, which
+ * takes a `kind` so option-specific repairs can run.
  */
-export function parseInline(text: string): ReactNode[] {
-  const re = /__([^_]+)__|_{([^}]*)}|\^{([^}]*)}/g
-  const nodes: ReactNode[] = []
-  let last = 0
-  let key = 0
 
-  for (const m of text.matchAll(re)) {
-    if (m.index! > last) nodes.push(text.slice(last, m.index))
-
-    if (m[1] !== undefined) {
-      nodes.push(
-        <u key={key++} className="underline underline-offset-2 decoration-2">
-          {m[1]}
-        </u>
-      )
-    } else if (m[2] !== undefined) {
-      nodes.push(
-        <sub key={key++} className="text-[0.72em]">
-          {m[2]}
-        </sub>
-      )
-    } else if (m[3] !== undefined) {
-      nodes.push(
-        <sup key={key++} className="text-[0.72em]">
-          {m[3]}
-        </sup>
-      )
-    }
-
-    last = m.index! + m[0].length
-  }
-
-  if (last < text.length) nodes.push(text.slice(last))
-  return nodes
+export function parseInline(text: string, kind: TextKind = "question"): ReactNode[] {
+  return renderRich(text, kind)
 }
 
 export function InlineText({
   text,
+  kind = "question",
   className,
 }: {
-  text: string
+  text: string | null | undefined
+  kind?: TextKind
   className?: string
 }) {
-  return <span className={className}>{parseInline(text)}</span>
+  return <span className={className}>{renderRich(text, kind)}</span>
 }

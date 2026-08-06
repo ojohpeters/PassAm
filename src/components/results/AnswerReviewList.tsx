@@ -42,7 +42,7 @@ export function AnswerReviewList({ answers }: { answers: Answer[] }) {
                   )}
                 >
                   <span className="font-mono">{opt.label}.</span>
-                  <span><InlineText text={opt.text} /></span>
+                  <span><InlineText text={opt.text} kind="option" /></span>
                   {opt.isCorrect && (
                     <span className="ml-auto text-xs font-normal text-green-600 dark:text-green-400">✓ Correct</span>
                   )}

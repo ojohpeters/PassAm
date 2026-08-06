@@ -314,7 +314,7 @@ export function DrillShell({ drill }: { drill: DrillSessionData }) {
                     {LABELS[i] ?? String.fromCharCode(65 + i)}
                   </div>
                   <span className="flex-1 pt-0.5 text-sm font-medium leading-relaxed">
-                    <InlineText text={opt.text} />
+                    <InlineText text={opt.text} kind="option" />
                   </span>
                   {isResult && isCorrect && <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />}
                   {isResult && isSelected && !isCorrect && <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-500" />}

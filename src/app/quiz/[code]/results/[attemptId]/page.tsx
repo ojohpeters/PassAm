@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 import Link from "next/link"
 import { CheckCircle2, XCircle, Trophy } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { RichText } from "@/lib/question-format"
 
 interface Props { params: { code: string; attemptId: string } }
 
@@ -63,7 +64,9 @@ export default async function QuizResultsPage({ params }: Props) {
                 {item.subject_label && (
                   <span className="mb-1 inline-block rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">{item.subject_label}</span>
                 )}
-                <p className="text-sm font-semibold leading-snug">{idx + 1}. {item.q_text}</p>
+                <p className="text-sm font-semibold leading-snug">
+                  {idx + 1}. <RichText text={item.q_text} />
+                </p>
               </div>
             </div>
 
@@ -88,14 +91,16 @@ export default async function QuizResultsPage({ params }: Props) {
                     )}>
                       {letter}
                     </span>
-                    <span className={cn(
-                      "flex-1 leading-snug",
-                      isCorrect ? "font-semibold text-emerald-800 dark:text-emerald-300" :
-                      isWrong ? "text-rose-700 dark:text-rose-400" :
-                      "text-muted-foreground"
-                    )}>
-                      {text}
-                    </span>
+                    <RichText
+                      text={text}
+                      kind="option"
+                      className={cn(
+                        "flex-1 leading-snug",
+                        isCorrect ? "font-semibold text-emerald-800 dark:text-emerald-300" :
+                        isWrong ? "text-rose-700 dark:text-rose-400" :
+                        "text-muted-foreground"
+                      )}
+                    />
                     {isCorrect && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />}
                     {isWrong && <XCircle className="h-3.5 w-3.5 text-rose-500 shrink-0 mt-0.5" />}
                   </div>
@@ -104,7 +109,9 @@ export default async function QuizResultsPage({ params }: Props) {
             </div>
 
             {item.explanation && (
-              <p className="text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-2">{item.explanation}</p>
+              <p className="text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-2">
+                <RichText text={item.explanation} kind="explanation" />
+              </p>
             )}
           </div>
         ))}
